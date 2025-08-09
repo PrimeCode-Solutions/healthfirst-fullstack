@@ -1,132 +1,129 @@
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
 
 export default function ConsultaNutricionalPage() {
   return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-1 flex flex-col items-center w-full px-4">
-        
-        {/* Seção Hero */}
-        <section className="w-full max-w-6xl py-6 md:py-12 lg:py-16">
-          <div className="flex flex-col items-center space-y-6 text-center">
-            <Image
-              src="/imagens/pagina_nutricional/foto1.webp"
-              alt="Nutritional Consultation Hero"
-              width={800}
-              height={400}
-              priority
-              className="rounded-xl object-cover w-full max-w-4xl"
-            />
-            <div className="space-y-4">
-              <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                Sua Jornada para uma Vida Saudável Começa Aqui
-              </h1>
-              <p className="text-gray-500 md:text-xl dark:text-gray-400 max-w-3xl mx-auto">
-                Na Health First, acreditamos que a nutrição é a base da saúde geral. Nossos serviços de consultoria
-                nutricional são projetados para ajudá-lo a atingir seus objetivos de saúde por meio de orientação
-                alimentar personalizada...
-              </p>
-            </div>
-          </div>
+    <div className="flex flex-col min-h-screen bg-white">
+      <main className="flex-1 flex flex-col items-center w-full px-6 py-8 max-w-[1100px] mx-auto">
+
+        {/* Hero */}
+        <section className="w-full">
+          <Image
+            src="/imagens/pagina_nutricional/foto1.webp"
+            alt="Consulta Nutricional"
+            width={928}
+            height={180}
+            className="rounded-lg object-cover w-full max-h-[180px]"
+            priority
+          />
+          <p className="mt-5 text-[14px] text-gray-700 leading-relaxed">
+            Na <strong>NAME</strong>, acreditamos que a nutrição é a base da saúde geral. 
+            Nossos serviços de consultoria nutricional são projetados para ajudá-lo a atingir seus objetivos de saúde 
+            por meio de orientação alimentar personalizada. Se você deseja controlar uma condição de saúde específica, 
+            melhorar seus níveis de energia ou simplesmente adotar um estilo de vida mais saudável, nossos nutricionistas 
+            especializados estão aqui para apoiá-lo em cada etapa do caminho.
+          </p>
         </section>
 
-        {/* Conteúdo Gratuito */}
-        <section className="w-full max-w-6xl py-6 md:py-12 lg:py-16 bg-gray-50 dark:bg-gray-900 rounded-lg">
-          <h2 className="text-2xl font-bold sm:text-3xl md:text-4xl text-center mb-8">
+        {/* Conteúdo gratuito */}
+        <section className="w-full mt-10">
+          <h2 className="text-[18px] font-semibold text-[#0D1C14] mb-5">
             Conteúdo gratuito
           </h2>
-          <div className="grid gap-6 md:grid-cols-3 lg:gap-8">
+          <div className="grid gap-4 md:grid-cols-3">
             {[
-              {
-                img: "/imagens/pagina_nutricional/mini1.webp",
-                title: "O poder de uma dieta equilibrada",
-                desc: "Descubra os benefícios de uma alimentação balanceada para sua saúde e bem-estar."
-              },
-              {
-                img: "/imagens/pagina_nutricional/mini2.webp",
-                title: "Receitas para uma alimentação saudável",
-                desc: "Acesse receitas deliciosas e nutritivas para o seu dia a dia."
-              },
-              {
-                img: "/imagens/pagina_nutricional/mini3.webp",
-                title: "Dicas para um estilo de vida mais saudável",
-                desc: "Orientações práticas para incorporar hábitos saudáveis em sua rotina."
-              }
+              { img: "/imagens/pagina_nutricional/mini1.webp", title: "O poder de uma dieta equilibrada" },
+              { img: "/imagens/pagina_nutricional/mini2.webp", title: "Receitas para uma alimentação saudável" },
+              { img: "/imagens/pagina_nutricional/mini3.webp", title: "Dicas para um estilo de vida mais saudável" }
             ].map((item, i) => (
-              <div key={i} className="bg-white p-4 rounded-lg flex items-center gap-4 border border-gray-200">
+              <div
+                key={i}
+                className="border border-gray-300 rounded-md flex items-center gap-3 p-3 bg-white hover:shadow-md transition-shadow duration-300"
+              >
                 <Image
                   src={item.img}
                   alt={item.title}
-                  width={64}
-                  height={64}
-                  className="object-cover rounded-md"
+                  width={38}
+                  height={38}
+                  className="rounded object-cover"
                 />
-                <div>
-                  <h3 className="text-lg font-semibold">{item.title}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{item.desc}</p>
-                </div>
+                <span className="text-[14px] font-semibold text-[#0D1C14]">
+                  {item.title}
+                </span>
               </div>
             ))}
           </div>
         </section>
 
         {/* Conteúdo Premium */}
-        <section className="w-full max-w-6xl py-6 md:py-12 lg:py-16">
-          <h2 className="text-2xl font-bold sm:text-3xl md:text-4xl text-center mb-8">
+        <section className="w-full mt-12">
+          <h2 className="text-[18px] font-semibold text-[#0D1C14] mb-6">
             Conteúdo Premium
           </h2>
-          <div className="grid gap-8">
+          <div className="space-y-5">
             {[
               {
                 badge: "Exclusivo",
                 title: "Planos alimentares personalizados",
-                desc: "Desbloqueie o acesso a planos alimentares personalizados...",
+                desc: "Desbloqueie o acesso a planos alimentares personalizados, adaptados às suas necessidades específicas e objetivos de saúde. Nossos nutricionistas criarão um plano adequado ao seu estilo de vida e preferências.",
                 img: "/imagens/pagina_nutricional/premium1.webp",
-                reverse: false
               },
               {
                 badge: "Premium",
                 title: "Guias nutricionais",
-                desc: "Tenha acesso a guias aprofundados sobre diversos temas...",
+                desc: "Acesse guias completos sobre diversos temas de nutrição, desde controle de doenças até fortalecimento da imunidade.",
                 img: "/imagens/pagina_nutricional/premium2.webp",
-                reverse: true
               }
             ].map((item, i) => (
-              <Card
+              <div
                 key={i}
-                className={`flex flex-col ${item.reverse ? "md:flex-row-reverse" : "md:flex-row"} items-center p-6 gap-6`}
+                className="flex flex-col md:flex-row items-center justify-between bg-gray-50 border border-gray-300 rounded-md p-4 gap-6"
               >
-                <div className="md:w-1/2 space-y-4">
-                  <Badge variant="secondary" className="text-[#00C896]">{item.badge}</Badge>
-                  <h3 className="text-2xl font-bold">{item.title}</h3>
-                  <p className="text-gray-500 dark:text-gray-400">{item.desc}</p>
-                  <Button className="bg-[#00C896] text-white hover:bg-[#00C896]/90">
+                <div className="flex-1 space-y-2">
+                  <span
+                    className="inline-block px-3 py-1 text-white text-[12px] rounded"
+                    style={{ backgroundColor: "#4F9678" }}
+                  >
+                    {item.badge}
+                  </span>
+                  <h3 className="text-[16px] font-semibold text-[#0D1C14]">
+                    {item.title}
+                  </h3>
+                  <p className="text-[14px] text-gray-700 leading-relaxed">
+                    {item.desc}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-2 h-9 px-4 border border-gray-300 text-[14px] font-semibold text-gray-800"
+                  >
                     Inscreva-se agora
                   </Button>
                 </div>
-                <div className="md:w-1/2 flex justify-center">
+                <div className="flex-shrink-0">
                   <Image
                     src={item.img}
                     alt={item.title}
-                    width={400}
-                    height={300}
-                    className="rounded-xl object-cover w-full max-w-md"
+                    width={180}
+                    height={120}
+                    className="rounded object-cover"
                   />
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         </section>
 
         {/* Botão de agendamento */}
-        <section className="w-full py-6 md:py-12 lg:py-16 flex justify-center">
-          <Button size="lg" className="bg-[#00C896] text-white hover:bg-[#00C896]/90">
+        <section className="w-full mt-12 flex justify-center">
+          <Button
+            size="lg"
+            className="bg-[#22C55E] hover:bg-[#16A34A] text-white px-7 h-11 text-[15px] font-semibold rounded-md"
+          >
             Agende uma consulta
           </Button>
         </section>
+
       </main>
     </div>
-  )
+  );
 }
