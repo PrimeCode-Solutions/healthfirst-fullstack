@@ -71,7 +71,7 @@ export default function AppointmentBooking() {
   const isMobile = useIsMobile();
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="bg-gray-50 p-4">
       <div className="mx-auto max-w-4xl">
         <div className="mb-8">
           <h1 className="mb-3 text-3xl font-bold text-gray-900">
