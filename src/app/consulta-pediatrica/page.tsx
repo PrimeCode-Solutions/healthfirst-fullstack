@@ -2,13 +2,14 @@ import React from 'react';
 import { Card }  from '@/components/ui/card';
 import { Stethoscope, Baby, Heart } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export default function ConsutaPediatricaPage() {
     return (
         <div className="flex items-center justify-center min-h-screen">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-6 w-full">
         
-        <section className="grid grid-cols-1 gap-6 mb-12">
+        <section className="grid grid-cols-1 gap-6 mb-12 mt-8">
         <div className="relative w-full mx-auto overflow-hidden rounded-xl">
            <Image
            width={1500}
@@ -28,10 +29,12 @@ export default function ConsutaPediatricaPage() {
                     Na HealthFirst, oferecemos atendimento para crianças de todas as idades, desde recém-nascidos até adolescentes.
                     Nossa equipe experiente se dedica a garantir a saúde e o bem-estar do seu filho. 
                 </p>
-
+                 
+                <Link href="/agendar-consulta" passHref>
                 <button className="items-center px-4 py-3 w-48 text-sm font-bold text-black bg-[var(--primary)] rounded-lg">
                     Agende uma consulta
                 </button>
+                </Link>
 
         </div>
         </div>  
@@ -155,9 +158,12 @@ export default function ConsutaPediatricaPage() {
                  orientação personalizada. Nossa equipe está aqui para apoiá-lo em cada etapa do processo.
             </p>
 
-            <button className="items-center px-4 py-2 bg-[var(--primary)] rounded-md text-black font-bold hover:bg-gray-300">
+            <Link href="/agendar-consulta" passHref> 
+            <button className="items-center px-4 py-2 bg-[var(--primary)] rounded-md text-black font-bold">
                 Marcar consulta
             </button>
+            </Link>
+
         </div>
         </section>
         </div>
