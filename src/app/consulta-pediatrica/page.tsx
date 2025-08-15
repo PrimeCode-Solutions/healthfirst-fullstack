@@ -30,10 +30,8 @@ export default function ConsutaPediatricaPage() {
                     Nossa equipe experiente se dedica a garantir a saúde e o bem-estar do seu filho. 
                 </p>
                  
-                <Link href="/agendar-consulta" passHref>
-                <button className="items-center px-4 py-3 w-48 text-sm font-bold text-black bg-[var(--primary)] rounded-lg">
+                <Link href="/agendar-consulta" className="inline-block text-center items-center px-4 py-3 w-48 text-sm font-bold text-black bg-[var(--primary)] rounded-lg">
                     Agende uma consulta
-                </button>
                 </Link>
 
         </div>
@@ -158,10 +156,8 @@ export default function ConsutaPediatricaPage() {
                  orientação personalizada. Nossa equipe está aqui para apoiá-lo em cada etapa do processo.
             </p>
 
-            <Link href="/agendar-consulta" passHref> 
-            <button className="items-center px-4 py-2 bg-[var(--primary)] rounded-md text-black font-bold">
+            <Link href="/agendar-consulta" className="inline-block text-center items-center px-4 py-2 bg-[var(--primary)] rounded-md text-black font-bold"> 
                 Marcar consulta
-            </button>
             </Link>
 
         </div>
