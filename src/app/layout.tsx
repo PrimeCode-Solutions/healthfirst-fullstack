@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/header";
-import { Footer } from "@/components/footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "HealthFirst - Cuidados Médicos de Qualidade",
-  description: "Oferecemos cuidados médicos de qualidade com uma equipe especializada, tecnologia avançada e atendimento humanizado para toda a família.",
+  description:
+    "Oferecemos cuidados médicos de qualidade com uma equipe especializada, tecnologia avançada e atendimento humanizado para toda a família.",
 };
 
 export default function RootLayout({
@@ -29,9 +28,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Header />
         {children}
-        <Footer />
       </body>
     </html>
   );
