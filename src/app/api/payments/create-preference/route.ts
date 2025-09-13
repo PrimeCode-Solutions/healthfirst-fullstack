@@ -1,6 +1,5 @@
 import { MercadoPagoConfig, Preference } from "mercadopago";
-import {PreferenceRequest} from "mercadopago/dist/clients/preference/commonTypes";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/app/providers/prisma";
 
 const client = new MercadoPagoConfig({
     accessToken: process.env.MP_ACCESS_TOKEN as string,
@@ -11,27 +10,40 @@ const preferenceClient =  new Preference(client);
 export async function POST(req: Request){
    
     try{
-      const body = await req.json();
+      const { appointmentId} = await req.json();
 
-      if(!body.id || !body.title || !body.unit_price){
+      if(!appointmentId){
         return new Response(
-            JSON.stringify({ error: "Dados incompletos!"}),
+            JSON.stringify({ error: "appointmentId é obrigatório!"}),
             {status: 400, headers: { "Content-Type": "application/json" }}
         );
       }
 
-       const preference: PreferenceRequest = {
+       const existingPayment = await prisma.payment.findFirst({
+        where: { appointmentId},
+       });
+
+       if(!existingPayment){
+        return new Response(JSON.stringify({ error: "Pagamento não encontrado para esse agendamento!"}), {
+           status: 404,
+           headers:{ "Content-Type": "application/json"} 
+        });
+       }
+
+   const response = await preferenceClient.create({
+    body: {
         items: [
         {
-            id:body.id,
-            title: body.title,
-            unit_price: Number(body.unit_price),
-            currency_id: "BRL",
-            quantity: body.quantity || 1,
-        },
-        ],
+            id: appointmentId.toString(),
+            title: existingPayment.description || "Consulta",
+            quantity: 1,
+            unit_price: Number(existingPayment.amount),
+            currency_id: existingPayment.currency || "BRL",
 
-        back_urls: {
+        },
+    ],
+
+      back_urls: {
             success: `${process.env.BASE_URL || 'http://localhost:3000'}/success`,
             failure: `${process.env.BASE_URL || 'http://localhost:3000'}/failure`,
             pending: `${process.env.BASE_URL || 'http://localhost:3000'}/pending`,
@@ -40,35 +52,26 @@ export async function POST(req: Request){
         auto_return: "approved",
 
         metadata: {
-            agendamentoId: body.id,
-            userId: body.userId
-        }        
-      };
+            appointmentId,
+           
+        },        
 
-   const response = await preferenceClient.create({body: preference});
+    }});
    
-   await prisma.payment.create({
-    data: {
-        appointmentId: body.id,
-        preferenceId: response.id,
-        amount: Number (body.unit_price),
-        status: "PENDING",
-        payerEmail: body.payerEmail,
-        payerName: body.payerName,
-        payerPhone: body.payerPhone,
-        description: body.description,
-        currency: body.currency
-        
-    },
-   });
+   await prisma.payment.update({
+    where: { id: existingPayment.id},
+    data: { preferenceId: response.id}
+   })
 
    return new Response(
     JSON.stringify({
     preferenceId: response.id,
     initPoint: response.init_point,
+    sandboxInitPoint: response.sandbox_init_point,
    }),
    
-     {status: 200,
+     {
+        status: 200,
         headers: {"Content-Type": "application/json"}
      }
     )

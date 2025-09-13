@@ -1,5 +1,5 @@
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/app/providers/prisma";
 import crypto from "crypto";
 import { PaymentStatus } from "@/generated/prisma";
 
@@ -70,28 +70,19 @@ export async function POST (req: Request){
             return undefined;    
     }
 }
-        
-       
+         
 
-        const updatedPayment = await prisma.payment.upsert({
+        const updatedPayment = await prisma.payment.update({
             where: { mercadoPagoId : mpPayment.id?.toString() },
-            create: { 
-            mercadoPagoId:mpPayment.id?.toString() ?? "",
+            data: { 
             status: mapStatus(mpPayment.status ?? ""),
             payerEmail: mpPayment.payer?.email,
             payerName: mpPayment.payer?.first_name,
             amount: mpPayment.transaction_amount ?? 0,
             currency: mpPayment.currency_id,
             description: mpPayment.description ?? "",
+            paidAt: mpPayment.status === "approved" ? new Date() : undefined,
         },
-        update: {
-            status: mapStatus(mpPayment.status),
-            payerEmail: mpPayment.payer?.email,
-            payerName: mpPayment.payer?.first_name,
-            amount: mpPayment.transaction_amount,
-            currency: mpPayment.currency_id,
-            description: mpPayment.description ?? "",
-         },
         });
 
             if(mpPayment.status === "approved" && updatedPayment.appointmentId){
