@@ -1,57 +1,100 @@
-import { useCallback } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createBusinessHoursRepository } from "@/modules/business-hours/infrastructure/businessHoursRepository";
-import type { UpdateBusinessHoursDTO, BusinessHours } from "@/modules/business-hours/domain/businessHours.interface";
+import { toast } from "sonner";
+import type {
+    UpdateBusinessHoursDTO,
+    BusinessHours,
+} from "@/modules/business-hours/domain/businessHours.interface";
+import { AxiosError } from "axios";
 
 const businessHoursRepository = createBusinessHoursRepository();
 
-//Tipagem para os campos dos dias da semana do DTO
+// Tipagem para os campos dos dias da semana do DTO
 type DaysOfWeekField =
-| "mondayEnabled"
-| "tuesdayEnabled"
-| "wednesdayEnablad"
-| "thursdayEnabled"
-| "fridayEnabled"
-| "saturdayEnabled"
-| "sundayEnabled";
+    | "mondayEnabled"
+    | "tuesdayEnabled"
+    | "wednesdayEnabled"
+    | "thursdayEnabled"
+    | "fridayEnabled"
+    | "saturdayEnabled"
+    | "sundayEnabled";
 
-//hook principal
-export function useBusinessHoursMutations(){
-    const updateBusinessHours = useCallback(
-        async(id: string, data: UpdateBusinessHoursDTO): Promise<BusinessHours | null> => {
-            return await businessHoursRepository.update(id, data);
-        },
-        []
-    );
-//Alterar a disponibilidade de qualquer dia da semana
-const toggleDayAvaliability = useCallback(
-    async (
-        id: string,
-        day: DaysOfWeekField,
-        enabled: boolean
-    ): Promise<BusinessHours | null> => {
-        return await businessHoursRepository.update(id, {[day]: enabled});
+// Hook para atualizar horário de funcionamento
+export function useUpdateBusinessHours() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+    mutationFn: ({
+        id,
+        data,
+    }: {
+        id: string;
+        data: UpdateBusinessHoursDTO;
+    }) => businessHoursRepository.update(id, data),
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["businessHours"] });
+        toast.success("Horário atualizado com sucesso!");
     },
-    []
-);
-//Atualiza as informações do intervalo de almoço
-const updateLunchBreak = useCallback(
-    async (
-        id: string,
-        lunchBreakEnabled: boolean,
-        lunchStartTime?: string,
-        lunchEndTime?: string
-    ): Promise<BusinessHours | null> => {
-        return await businessHoursRepository.update(id, {
-            lunchBreakEnabled,
-            lunchStartTime,
-            lunchEndTime,
-        });
+    onError: (error: AxiosError) => {
+        console.error("Erro ao atualizar horário:", error);
+        toast.error(error.message || "Erro ao atualizar horário");
     },
-    []
-);
-return {
-    updateBusinessHours,
-    toggleDayAvaliability,
-    updateLunchBreak,
-};
+    });
+}
+
+// Hook para alternar disponibilidade de dia da semana
+export function useToggleDayAvailability() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+    mutationFn: ({
+        id,
+        day,
+        enabled,
+    }: {
+        id: string;
+        day: DaysOfWeekField;
+        enabled: boolean;
+    }) => businessHoursRepository.update(id, { [day]: enabled }),
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["businessHours"] });
+        toast.success("Disponibilidade atualizada com sucesso!");
+    },
+    onError: (error: AxiosError) => {
+        console.error("Erro ao alterar disponibilidade:", error);
+        toast.error(error.message || "Erro ao alterar disponibilidade");
+    },
+    });
+}
+
+// Hook para atualizar intervalo de almoço
+export function useUpdateLunchBreak() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+    mutationFn: ({
+        id,
+        lunchBreakEnabled,
+        lunchStartTime,
+        lunchEndTime,
+    }: {
+        id: string;
+        lunchBreakEnabled: boolean;
+        lunchStartTime?: string;
+        lunchEndTime?: string;
+    }) =>
+        businessHoursRepository.update(id, {
+        lunchBreakEnabled,
+        lunchStartTime,
+        lunchEndTime,
+        }),
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["businessHours"] });
+        toast.success("Intervalo de almoço atualizado com sucesso!");
+    },
+    onError: (error: AxiosError) => {
+        console.error("Erro ao atualizar intervalo de almoço:", error);
+        toast.error(error.message || "Erro ao atualizar intervalo de almoço");
+    },
+    });
 }
