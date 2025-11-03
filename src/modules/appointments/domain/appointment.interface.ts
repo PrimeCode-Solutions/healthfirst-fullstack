@@ -32,13 +32,6 @@ export interface UpdateAppointmentStatusDTO{
     status: AppointmentStatus;
 }
 
-export interface AppointmentRepository{
-    findById(id: string): Promise<Appointment | null>;
-    findByUser(userId: string): Promise<Appointment[]>;
-    create(data: CreateAppointmentDTO): Promise<Appointment>;
-    update(data: UpdateAppointmentStatusDTO): Promise<Appointment>;
-    delete(id: string): Promise<Appointment>;
-}
 
 
 

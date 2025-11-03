@@ -1,31 +1,38 @@
-import { PrismaClient } from "@prisma/client";
-import type { Appointment, CreateAppointmentDTO, UpdateAppointmentStatusDTO, AppointmentRepository} from "../domain/appointment.interface";
+// AQUI BASICAMENTE VAMO SUBSTITUIR A CHAMADA DO PRISMA PELO app/api COM AXIOS
+import axios from 'axios'
+import type { Appointment, CreateAppointmentDTO, UpdateAppointmentStatusDTO } from "../domain/appointment.interface";
+import type { AppointmentRepositoryDomain } from "../domain/appointments.repository";
 
-const prisma = new PrismaClient()
 
-export class PrismaAppointmentRepository implements AppointmentRepository {
-    async findById(id: string): Promise<Appointment | null> {
-        const row = await prisma.appointment.findUnique({ where: { id } });
-        return row
+export class AppointmentRepository implements AppointmentRepositoryDomain {
+    async findAll(): Promise<Appointment> {
+        const response = await axios.get('/api/appointments')
+        return response.data
     }
 
-    async findByUser(userId: string): Promise<Appointment[]> {
-        return prisma.appointment.findMany({ where: { userId }, orderBy: { date: "asc" } });
+    async findById(id: string): Promise<Appointment> {
+        const response = await axios.get(`/api/appointments/${id}`);
+        return response.data
+    }
+
+    async findByUser(userId: string): Promise<Appointment> {
+        const response = await axios.get(`/api/appointments/user/${userId}`);
+        return response.data
     }
 
     async create(data: CreateAppointmentDTO): Promise<Appointment> {
-        return prisma.appointment.create({ data });
+        const response = await axios.post(`/api/appointments`, data)
+        return response.data
     }
 
     async update(data: UpdateAppointmentStatusDTO): Promise<Appointment> {
-        const { id, ...rest } = data
-        return prisma.appointment.update({
-            where: { id },
-            data: rest as any,
-        });
+        const { id, status } = data
+        const response = await axios.put(`/api/appointments/${id}`, status)
+        return response.data
     }
 
     async delete(id: string): Promise<Appointment> {
-        return prisma.appointment.delete({ where: { id } });
+        const response = await axios.delete(`/api/appointments/${id}`);
+        return response.data
     }
 }
