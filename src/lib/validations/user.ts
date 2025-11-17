@@ -11,9 +11,8 @@ export const createUserSchema = z.object({
     .email("Por favor, insira um e-mail válido"),
   phone: z
     .string()
-    .min(10, "O telefone deve ter pelo menos 10 caracteres")
-    .optional()
-    .or(z.literal("")),
+    .min(1, "O telefone é obrigatório")
+    .min(14, "Telefone incompleto"),
   role: z.nativeEnum(UserRole).default(UserRole.USER),
 });
 
@@ -28,7 +27,6 @@ export const updateUserSchema = z.object({
     .optional(),
   phone: z
     .string()
-    .min(10, "O telefone deve ter pelo menos 10 caracteres")
-    .optional()
-    .or(z.literal("")),
+    .min(14, "Telefone incompleto")
+    .optional(), 
 });

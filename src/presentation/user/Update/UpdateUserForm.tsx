@@ -18,6 +18,16 @@ import { Button } from "@/components/ui/button";
 import { User } from "@/modules/user/domain/user.interface";
 import { Save } from "lucide-react";
 
+// Função auxiliar de máscara
+const formatPhone = (value: string) => {
+  if (!value) return "";
+  return value
+    .replace(/\D/g, "")
+    .replace(/(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2")
+    .replace(/(-\d{4})\d+?$/, "$1");
+};
+
 interface UpdateUserFormProps {
   user: User;
   onSuccess?: () => void;
@@ -65,9 +75,17 @@ export function UpdateUserForm({ user, onSuccess }: UpdateUserFormProps) {
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Telefone (Opcional)</FormLabel>
+              <FormLabel>Telefone</FormLabel>
               <FormControl>
-                <Input placeholder="Ex: (11) 99999-9999" {...field} />
+                <Input
+                  placeholder="Ex: (82) 99999-9999"
+                  {...field}
+                  onChange={(e) => {
+                    const formatted = formatPhone(e.target.value);
+                    field.onChange(formatted);
+                  }}
+                  maxLength={15}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

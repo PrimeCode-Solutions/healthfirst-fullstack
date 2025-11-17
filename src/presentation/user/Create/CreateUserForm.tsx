@@ -22,6 +22,15 @@ import {
 import { UserRole } from "@/modules/user/domain/user.interface";
 import { Save } from "lucide-react";
 
+// Função auxiliar de máscara
+const formatPhone = (value: string) => {
+  return value
+    .replace(/\D/g, "") // Remove tudo que não é dígito
+    .replace(/(\d{2})(\d)/, "($1) $2") // Coloca parênteses em volta dos dois primeiros dígitos
+    .replace(/(\d{5})(\d)/, "$1-$2") // Coloca hífen entre o quinto e o sexto dígitos
+    .replace(/(-\d{4})\d+?$/, "$1"); // Impede digitar mais de 4 dígitos após o hífen
+};
+
 export function CreateUserForm() {
   const { form, handleSubmit, isPending } = useCreateUserForm();
 
@@ -75,9 +84,17 @@ export function CreateUserForm() {
           name="phone"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Telefone (Opcional)</FormLabel>
+              <FormLabel>Telefone</FormLabel>
               <FormControl>
-                <Input placeholder="Ex: (11) 99999-9999" {...field} />
+                <Input
+                  placeholder="Ex: (11) 99999-9999"
+                  {...field}
+                  onChange={(e) => {
+                    const formatted = formatPhone(e.target.value);
+                    field.onChange(formatted);
+                  }}
+                  maxLength={15} 
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
