@@ -4,11 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import type { CreateAppointmentDTO } from "@/modules/appointments/domain/appointment.interface";
 
 export const schema = z.object({
-    date: z.string().min(1, "Data é obrigatória"),
+    userId: z.string().min(1, "Id do usuário é necessário"),
+    date: z.date().min(1, "Data é necessária"),
     startTime: z.string().min(1, "Horário inicial é obrigatório"),
     endTime: z.string().min(1, "Horário final é obrigatório"),
     patientName: z.string().min(1, "Nome é obrigatório"),
-    patientEmail: z.string().email("Email invalido"),
+    type: z.enum(["GENERAL", "URGENT", "FOLLOWUP"]),
+    patientEmail: z.string().email("Email invalido").optional(),
     patientPhone: z.string().regex(/^\d{10,11}$/, "Apenas números são aceitos").optional(),
     notes: z.string().optional(),
 });
@@ -19,7 +21,7 @@ export const useAppointmentForm = (
     const {
         register,
         handleSubmit,
-        formState: { erros, isSubmitting },
+        formState: { errors, isSubmitting },
         reset,
         control,
     } = useForm<CreateAppointmentDTO>({ resolver: zodResolver(schema), defaultValues, });
@@ -27,7 +29,7 @@ export const useAppointmentForm = (
     return {
         register,
         handleSubmit,
-        erros,
+        errors,
         isSubmitting,
         reset,
         control,
