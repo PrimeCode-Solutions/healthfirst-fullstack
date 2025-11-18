@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { onUpdateAppointmentStatus } from "../mutations/useAppointmentMutations";
+import { useUpdateAppointmentStatusMutation } from "../mutations/useAppointmentMutations";
 
 export const AppointmentStatusSchema = z.enum([
   "PENDING",
@@ -26,7 +26,7 @@ export function UpdateAppointmentForm() {
     },
   });
 
-  const updateAppointment = onUpdateAppointmentStatus();
+  const updateAppointment = useUpdateAppointmentStatusMutation();
 
   const onSubmit = form.handleSubmit((data: UpdateAppointmentType) => {
     updateAppointment.mutate(data, {

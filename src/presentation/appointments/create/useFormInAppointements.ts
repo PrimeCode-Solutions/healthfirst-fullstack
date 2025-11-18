@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useCreateAppointment } from "../mutations/useAppointmentMutations";
+import { useCreateAppointmentMutation } from "../mutations/useAppointmentMutations";
 
 export const ConsultationTypeSchema = z.enum(["GENERAL", "URGENT", "FOLLOWUP"]);
 
@@ -35,7 +35,7 @@ export function CreateAppointmentForm() {
     },
   });
 
-  const createAppointment = useCreateAppointment();
+  const createAppointment = useCreateAppointmentMutation();
 
   const onSubmit = form.handleSubmit((data: CreateAppointmentType) => {
     createAppointment.mutate(data, {

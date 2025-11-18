@@ -1,56 +1,57 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { AppointmentRepository } from '@/modules/appointments/infrastructure/appointmentRepository';
-import { CreateAppointmentDTO, UpdateAppointmentStatusDTO } from '@/modules/appointments/domain/appointment.interface';
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { appointmentService } from "../services/appointmentsServices";
+import {
+  CreateAppointmentDTO,
+  UpdateAppointmentStatusDTO,
+} from "@/modules/appointments/domain/appointment.interface";
 
-const repository = AppointmentRepository();
-
-export function useCreateAppointment() {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-    mutationFn: (data: CreateAppointmentDTO) => repository.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      toast.success('Agendamento criado com sucesso!');
-    },
-    onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar agendamento');
-    },
-  });
-}
-
-export function onUpdateAppointmentStatus() {
-     const queryClient = useQueryClient();
+export const useCreateAppointmentMutation = () => {
+  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: UpdateAppointmentStatusDTO) => repository.update(data),
+    mutationFn: (data: CreateAppointmentDTO) =>
+      appointmentService.createAppointment(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Agendamento criado com sucesso!");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Erro ao criar agendamento!");
+    },
+  });
+};
+
+export const useUpdateAppointmentStatusMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: UpdateAppointmentStatusDTO) =>
+      appointmentService.updateAppointmentStatus(data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      queryClient.invalidateQueries({ queryKey: ['appointments', variables.id] });
-      toast.success('Status atualizado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({
+        queryKey: ["appointments", variables.id],
+      });
+      toast.success("Status atualizado com sucesso!");
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar status');
+      toast.error(error.message || "Erro ao atualizar status do agendamento!");
     },
   });
-}
+};
 
-export function onCancelAppointment(id: string) {
-    const queryClient = useQueryClient();
+export const useCancelAppointmentMutation = (id: string) => {
+  const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => repository.delete(id),
+    mutationFn: (id: string) => appointmentService.deleteAppointment(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      toast.success('Agendamento cancelado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Agendamento cancelado com sucesso!");
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao cancelar agendamento');
+      toast.error(error.message || "Erro ao cancelar agendamento!");
     },
   });
 }
-
-
-
-
