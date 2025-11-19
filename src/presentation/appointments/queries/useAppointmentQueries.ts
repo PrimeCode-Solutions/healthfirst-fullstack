@@ -1,27 +1,25 @@
-import { AppointmentRepository } from "@/modules/appointments/infrastructure/appointmentRepository";
+import { appointmentService } from '../services/appointmentsServices';
 import { useQuery } from '@tanstack/react-query';
 
-const repository = AppointmentRepository();
-
-export function useAppointments() {
+export const findAllAppointmentsQuery = () => {
   return useQuery({
     queryKey: ['appointments'],
-    queryFn: () => repository.findAll(),
+    queryFn: () => appointmentService.findAllAppointments(),
   });
 }
 
-export function useAppointmentById(id: string) {
+export const findAppointmentByIdQuery = (id: string) => {
   return useQuery({
     queryKey: ['appointments', id],
-    queryFn: () => repository.findById(id),
+    queryFn: () => appointmentService.findAppointmentById(id),
     enabled: !!id,
   });
 }
 
-export function useUserAppointments(userId: string) {
+export const findAppointmentsByUserQuery = (userId: string) => {
   return useQuery({
     queryKey: ['appointments', 'user', userId],
-    queryFn: () => repository.findByUser(userId),
+    queryFn: () => appointmentService.findAppointmentsByUser(userId),
     enabled: !!userId,
   });
 }

@@ -1,3 +1,11 @@
-export { useCreateAppointment, onUpdateAppointmentStatus, onCancelAppointment } from "./mutations/useAppointmentMutations"
+export {
+  useCreateAppointmentMutation,
+  useUpdateAppointmentStatusMutation,
+  useCancelAppointmentMutation,
+} from "./mutations/useAppointmentMutations";
 
-export { useAppointments, useAppointmentById, useUserAppointments } from "./queries/useAppointmentQueries"
+export {
+  findAllAppointmentsQuery,
+  findAppointmentByIdQuery,
+  findAppointmentsByUserQuery,
+} from "./queries/useAppointmentQueries";
