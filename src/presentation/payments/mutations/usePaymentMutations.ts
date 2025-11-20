@@ -4,7 +4,7 @@ import {toast} from "sonner";
 import { PaymentStatus, type CreatePaymentDTO } from "@/modules/payments/domain/payment.interface";
 import { Axios, AxiosError } from "axios";
 import { error } from "console";
-import { Payment } from "@/generated/prisma";
+import { Payment } from "@/modules/payments/domain/payment.interface";
 
 const paymentRepository = createPaymentRepository();
 
