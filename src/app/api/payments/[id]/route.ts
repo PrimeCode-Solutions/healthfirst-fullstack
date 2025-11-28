@@ -1,8 +1,10 @@
 import { prisma } from "@/app/providers/prisma";
 
-export async function GET(_req: Request, context: { params: { id: string } }) {
-    
-    const params  = await context.params;
+export async function GET(
+    _req: Request, 
+    props: { params: Promise<{ id: string }> } // Atualize a tipagem aqui
+  ) {
+    const params = await props.params;
     
     try {
         const payment = await prisma.payment.findFirst({

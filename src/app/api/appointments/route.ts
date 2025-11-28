@@ -6,7 +6,7 @@ import {
   AppointmentStatus,
   PaymentStatus,
   ConsultationType,
-} from "../../../generated/prisma"; // <— ajuste se seu route.ts estiver noutra pasta
+} from "@/generated/prisma"; // <— ajuste se seu route.ts estiver noutra pasta
 import { z } from "zod";
 import {
   parseISO,

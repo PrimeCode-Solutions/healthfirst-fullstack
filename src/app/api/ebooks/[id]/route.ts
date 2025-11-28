@@ -7,9 +7,10 @@ import { z } from "zod";
 // GET /api/ebooks/[id] - Detalhes completos do ebook
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const { id } = idParamSchema.parse(params);
 
     const ebook = await prisma.ebook.findUnique({
@@ -37,12 +38,26 @@ export async function GET(
     const response: ApiResponse<Ebook> = {
       success: true,
       data: {
-        ...ebook,
-        price: ebook.price ? Number(ebook.price) : null,
+        id: ebook.id,
+        title: ebook.title,
+        description: ebook.description ?? undefined, // Converte null para undefined
+        author: ebook.author,
+        coverImage: ebook.coverImage ?? undefined,
+        fileUrl: ebook.fileUrl,
+        isPremium: ebook.isPremium,
+        price: ebook.price ? Number(ebook.price) : undefined, // Converte Decimal para number
+        categoryId: ebook.categoryId,
+        fileSize: ebook.fileSize ?? undefined,
+        fileType: ebook.fileType,
+        isActive: ebook.isActive,
+        downloadCount: ebook.downloadCount,
+        viewCount: ebook.viewCount,
         createdAt: ebook.createdAt.toISOString(),
         updatedAt: ebook.updatedAt.toISOString(),
         category: {
-          ...ebook.category,
+          id: ebook.category.id,
+          name: ebook.category.name,
+          description: ebook.category.description ?? undefined, // Converte null para undefined na categoria
           createdAt: ebook.category.createdAt.toISOString(),
           updatedAt: ebook.category.updatedAt.toISOString()
         }
@@ -58,7 +73,7 @@ export async function GET(
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message // .issues em vez de .errors
       };
       return NextResponse.json(response, { status: 400 });
     }
@@ -75,9 +90,10 @@ export async function GET(
 // PUT /api/ebooks/[id] - Editar ebook (apenas admin)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const { id } = idParamSchema.parse(params);
 
     // Verificar se ebook existe
@@ -124,12 +140,26 @@ export async function PUT(
     const response: ApiResponse<Ebook> = {
       success: true,
       data: {
-        ...updatedEbook,
-        price: updatedEbook.price ? Number(updatedEbook.price) : null,
+        id: updatedEbook.id,
+        title: updatedEbook.title,
+        description: updatedEbook.description ?? undefined,
+        author: updatedEbook.author,
+        coverImage: updatedEbook.coverImage ?? undefined,
+        fileUrl: updatedEbook.fileUrl,
+        isPremium: updatedEbook.isPremium,
+        price: updatedEbook.price ? Number(updatedEbook.price) : undefined,
+        categoryId: updatedEbook.categoryId,
+        fileSize: updatedEbook.fileSize ?? undefined,
+        fileType: updatedEbook.fileType,
+        isActive: updatedEbook.isActive,
+        downloadCount: updatedEbook.downloadCount,
+        viewCount: updatedEbook.viewCount,
         createdAt: updatedEbook.createdAt.toISOString(),
         updatedAt: updatedEbook.updatedAt.toISOString(),
         category: {
-          ...updatedEbook.category,
+          id: updatedEbook.category.id,
+          name: updatedEbook.category.name,
+          description: updatedEbook.category.description ?? undefined,
           createdAt: updatedEbook.category.createdAt.toISOString(),
           updatedAt: updatedEbook.category.updatedAt.toISOString()
         }
@@ -145,7 +175,7 @@ export async function PUT(
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message
       };
       return NextResponse.json(response, { status: 400 });
     }
@@ -162,9 +192,10 @@ export async function PUT(
 // DELETE /api/ebooks/[id] - Deletar ebook (apenas admin)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const { id } = idParamSchema.parse(params);
 
     // Verificar se ebook existe
@@ -188,7 +219,7 @@ export async function DELETE(
 
     const response: ApiResponse = {
       success: true,
-      data: { message: "Ebook deletado com sucesso" },
+      data: { message: "Ebook deletado com sucesso" } as any,
       error: null
     };
 
@@ -200,7 +231,7 @@ export async function DELETE(
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message
       };
       return NextResponse.json(response, { status: 400 });
     }

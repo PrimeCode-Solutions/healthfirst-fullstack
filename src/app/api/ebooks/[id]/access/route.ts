@@ -7,9 +7,10 @@ import { z } from "zod";
 // POST /api/ebooks/[id]/access - Registrar acesso/view do usuário
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const { id } = idParamSchema.parse(params);
     const body = await request.json();
     const userId = body.userId; // TODO: Pegar do token de autenticação
@@ -67,7 +68,7 @@ export async function POST(
       success: true,
       data: {
         ...access,
-        lastDownload: access.lastDownload?.toISOString() || null,
+        lastDownload: access.lastDownload?.toISOString() || undefined,
         firstAccess: access.firstAccess.toISOString(),
         lastAccess: access.lastAccess.toISOString(),
         createdAt: access.createdAt.toISOString(),
@@ -84,7 +85,7 @@ export async function POST(
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message
       };
       return NextResponse.json(response, { status: 400 });
     }

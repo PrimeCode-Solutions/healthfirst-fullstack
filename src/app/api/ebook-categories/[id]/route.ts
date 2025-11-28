@@ -7,14 +7,14 @@ import { z } from "zod";
 // PUT /api/ebook-categories/[id] - Editar categoria (apenas admin)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const { id } = idParamSchema.parse(params);
     const body = await request.json();
     const validatedData = updateCategorySchema.parse(body);
 
-    // Verificar se categoria existe
     const existingCategory = await prisma.ebookCategory.findUnique({
       where: { id }
     });
@@ -28,7 +28,6 @@ export async function PUT(
       return NextResponse.json(response, { status: 404 });
     }
 
-    // Verificar se nome já existe (se estiver sendo alterado)
     if (validatedData.name && validatedData.name !== existingCategory.name) {
       const nameExists = await prisma.ebookCategory.findUnique({
         where: { name: validatedData.name }
@@ -57,7 +56,9 @@ export async function PUT(
     const response: ApiResponse<EbookCategory> = {
       success: true,
       data: {
-        ...updatedCategory,
+        id: updatedCategory.id,
+        name: updatedCategory.name,
+        description: updatedCategory.description ?? undefined,
         createdAt: updatedCategory.createdAt.toISOString(),
         updatedAt: updatedCategory.updatedAt.toISOString()
       },
@@ -72,7 +73,7 @@ export async function PUT(
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message // <--- CORREÇÃO AQUI (.issues em vez de .errors)
       };
       return NextResponse.json(response, { status: 400 });
     }
@@ -89,12 +90,12 @@ export async function PUT(
 // DELETE /api/ebook-categories/[id] - Deletar categoria (apenas admin)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const { id } = idParamSchema.parse(params);
 
-    // Verificar se categoria existe
     const existingCategory = await prisma.ebookCategory.findUnique({
       where: { id },
       include: {
@@ -113,7 +114,6 @@ export async function DELETE(
       return NextResponse.json(response, { status: 404 });
     }
 
-    // Verificar se há ebooks associados
     if (existingCategory._count.ebooks > 0) {
       const response: ApiResponse = {
         success: false,
@@ -141,7 +141,7 @@ export async function DELETE(
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message // <--- CORREÇÃO AQUI (.issues em vez de .errors)
       };
       return NextResponse.json(response, { status: 400 });
     }

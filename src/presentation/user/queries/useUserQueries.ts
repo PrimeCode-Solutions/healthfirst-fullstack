@@ -11,37 +11,29 @@ export const USER_QUERY_KEYS = {
     [...USER_QUERY_KEYS.detail(id), "premium-access"] as const,
 };
 
-export const useUserQueries = () => {
-  const userRepository = createUserRepository();
+const userRepository = createUserRepository();
 
-  const usePremiumAccess = (userId: string) => {
-    return useQuery({
-      queryKey: USER_QUERY_KEYS.premium(userId),
-      queryFn: () => userRepository.hasAccessToPremiumContent(userId),
-      enabled: !!userId,
-      staleTime: 2 * 60 * 1000,
-      retry: 2,
-    });
-  };
+export function usePremiumAccess(userId: string) {
+  return useQuery({
+    queryKey: USER_QUERY_KEYS.premium(userId),
+    queryFn: () => userRepository.hasAccessToPremiumContent(userId),
+    enabled: !!userId,
+    staleTime: 2 * 60 * 1000,
+    retry: 2,
+  });
+}
 
-  const useListUsers = () => {
-    return useQuery({
-      queryKey: USER_QUERY_KEYS.lists(),
-      queryFn: userService.listUsers,
-    });
-  };
+export function useListUsers() {
+  return useQuery({
+    queryKey: USER_QUERY_KEYS.lists(),
+    queryFn: userService.listUsers,
+  });
+}
 
-  const useGetUserById = (userId: string) => {
-    return useQuery({
-      queryKey: USER_QUERY_KEYS.detail(userId),
-      queryFn: () => userService.getUserById(userId),
-      enabled: !!userId,
-    });
-  };
-
-  return {
-    usePremiumAccess,
-    useListUsers,
-    useGetUserById,
-  };
-};
+export function useGetUserById(userId: string) {
+  return useQuery({
+    queryKey: USER_QUERY_KEYS.detail(userId),
+    queryFn: () => userService.getUserById(userId),
+    enabled: !!userId,
+  });
+}

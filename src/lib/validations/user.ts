@@ -13,7 +13,7 @@ export const createUserSchema = z.object({
     .string()
     .min(1, "O telefone é obrigatório")
     .min(14, "Telefone incompleto"),
-  role: z.nativeEnum(UserRole).default(UserRole.USER),
+  role: z.nativeEnum(UserRole), 
 });
 
 export const updateUserSchema = z.object({

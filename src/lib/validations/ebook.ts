@@ -17,7 +17,7 @@ export const updateCategorySchema = createCategorySchema.partial();
 export const createEbookSchema = z.object({
   title: z.string()
     .min(1, "Título é obrigatório")
-    .min(3, "Título deve ter pelo menos 3 caracteres")
+    .min(3, "Título deve ter pelo menos 3 caracteres"),
   description: z.string()
     .max(1000, "Descrição deve ter no máximo 1000 caracteres")
     .optional(),
@@ -26,8 +26,8 @@ export const createEbookSchema = z.object({
     .min(2, "Nome do autor deve ter pelo menos 2 caracteres")
     .max(100, "Nome do autor deve ter no máximo 100 caracteres"),
   categoryId: z.string()
-  categoryId: z.string()
-    .min(2, "Categoria deve ter pelo menos 2 caracteres"),
+    .min(1, "Categoria é obrigatória"),
+  isPremium: z.boolean().default(false), // <--- Campo adicionado aqui
   price: z.number()
     .min(0, "Preço deve ser maior ou igual a 0")
     .max(9999.99, "Preço deve ser menor que R$ 10.000")
@@ -35,6 +35,7 @@ export const createEbookSchema = z.object({
   fileType: z.enum(["pdf", "epub", "mobi"])
 }).refine(
   (data) => {
+    // Agora data.isPremium existe no tipo inferido
     if (data.isPremium && (!data.price || data.price <= 0)) {
       return false;
     }

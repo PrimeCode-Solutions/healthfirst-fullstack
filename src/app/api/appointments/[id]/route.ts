@@ -6,7 +6,7 @@ import {
   ConsultationType,
   PaymentStatus,
   UserRole,
-} from "../../../../generated/prisma";
+} from "@/generated/prisma";
 import {
   parseISO,
   isValid as isValidDate,
@@ -145,8 +145,14 @@ async function ensureAdmin(userId: string) {
 }
 
 /* ============================== PUT ============================== */
-export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PUT(
+  req: NextRequest,
+  props: { params: Promise<{ id: string }> } 
+) {
   try {
+    const params = await props.params; 
+    const { id } = params;
+
     const user = await getAuthUser(req);
     if (!user?.id)
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -154,7 +160,7 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     if (!isAdmin)
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-    const { id } = ctx.params;
+    // O restante do código da função PUT continua igual...
     const body = await req.json().catch(() => ({}) as any);
 
     const {
@@ -262,17 +268,18 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
 /* ============================ DELETE ============================ */
 export async function DELETE(
   req: NextRequest,
-  ctx: { params: { id: string } },
+  props: { params: Promise<{ id: string }> },
 ) {
   try {
+    const params = await props.params; 
+    const { id } = params;
+
     const user = await getAuthUser(req);
     if (!user?.id)
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     const isAdmin = await ensureAdmin(user.id);
     if (!isAdmin)
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
-
-    const { id } = ctx.params;
 
     const appt = await prisma.appointment.findUnique({
       where: { id },

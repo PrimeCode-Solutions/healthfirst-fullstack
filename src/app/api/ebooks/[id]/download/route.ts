@@ -7,9 +7,10 @@ import { z } from "zod";
 // GET /api/ebooks/[id]/download - Download com verificação de acesso premium
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await props.params;
     const { id } = idParamSchema.parse(params);
 
     // Buscar ebook
@@ -77,7 +78,7 @@ export async function GET(
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message
       };
       return NextResponse.json(response, { status: 400 });
     }

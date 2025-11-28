@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/providers/prisma";
-import { createCategorySchema } from "@/lib/validations/ebook";
+import { createCategorySchema, updateCategorySchema, idParamSchema } from "@/lib/validations/ebook";
 import { ApiResponse, EbookCategory } from "@/types/ebook";
 import { z } from "zod";
 
@@ -23,7 +23,9 @@ export async function GET() {
     const response: ApiResponse<EbookCategory[]> = {
       success: true,
       data: categories.map(cat => ({
-        ...cat,
+        id: cat.id,
+        name: cat.name,
+        description: cat.description ?? undefined,
         createdAt: cat.createdAt.toISOString(),
         updatedAt: cat.updatedAt.toISOString()
       })),
@@ -48,7 +50,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = createCategorySchema.parse(body);
 
-    // Verificar se categoria já existe
     const existingCategory = await prisma.ebookCategory.findUnique({
       where: { name: validatedData.name }
     });
@@ -74,7 +75,9 @@ export async function POST(request: NextRequest) {
     const response: ApiResponse<EbookCategory> = {
       success: true,
       data: {
-        ...category,
+        id: category.id,
+        name: category.name,
+        description: category.description ?? undefined,
         createdAt: category.createdAt.toISOString(),
         updatedAt: category.updatedAt.toISOString()
       },
@@ -89,7 +92,159 @@ export async function POST(request: NextRequest) {
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message
+      };
+      return NextResponse.json(response, { status: 400 });
+    }
+
+    const response: ApiResponse = {
+      success: false,
+      data: null,
+      error: "Erro interno do servidor"
+    };
+    return NextResponse.json(response, { status: 500 });
+  }
+}
+
+// PUT /api/ebook-categories/[id] - Editar categoria (apenas admin)
+export async function PUT(
+  request: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
+  try {
+    const params = await props.params;
+    const { id } = params;
+
+    const body = await request.json();
+    const validatedData = updateCategorySchema.parse(body);
+
+    const existingCategory = await prisma.ebookCategory.findUnique({
+      where: { id }
+    });
+
+    if (!existingCategory) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: "Categoria não encontrada"
+      };
+      return NextResponse.json(response, { status: 404 });
+    }
+
+    if (validatedData.name && validatedData.name !== existingCategory.name) {
+      const nameExists = await prisma.ebookCategory.findUnique({
+        where: { name: validatedData.name }
+      });
+
+      if (nameExists) {
+        const response: ApiResponse = {
+          success: false,
+          data: null,
+          error: "Categoria com este nome já existe"
+        };
+        return NextResponse.json(response, { status: 400 });
+      }
+    }
+
+    const updatedCategory = await prisma.ebookCategory.update({
+      where: { id },
+      data: validatedData,
+      include: {
+        _count: {
+          select: { ebooks: true }
+        }
+      }
+    });
+
+    const response: ApiResponse<EbookCategory> = {
+      success: true,
+      data: {
+        id: updatedCategory.id,
+        name: updatedCategory.name,
+        description: updatedCategory.description ?? undefined,
+        createdAt: updatedCategory.createdAt.toISOString(),
+        updatedAt: updatedCategory.updatedAt.toISOString()
+      },
+      error: null
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("Erro ao atualizar categoria:", error);
+    
+    if (error instanceof z.ZodError) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: error.issues[0].message
+      };
+      return NextResponse.json(response, { status: 400 });
+    }
+
+    const response: ApiResponse = {
+      success: false,
+      data: null,
+      error: "Erro interno do servidor"
+    };
+    return NextResponse.json(response, { status: 500 });
+  }
+}
+
+// DELETE /api/ebook-categories/[id] - Deletar categoria (apenas admin)
+export async function DELETE(
+  request: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
+  try {
+    const params = await props.params;
+    const { id } = params;
+
+    const existingCategory = await prisma.ebookCategory.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { ebooks: true }
+        }
+      }
+    });
+
+    if (!existingCategory) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: "Categoria não encontrada"
+      };
+      return NextResponse.json(response, { status: 404 });
+    }
+
+    if (existingCategory._count.ebooks > 0) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: "Não é possível deletar categoria com ebooks associados"
+      };
+      return NextResponse.json(response, { status: 400 });
+    }
+
+    await prisma.ebookCategory.delete({
+      where: { id }
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: { message: "Categoria deletada com sucesso" } as any, 
+      error: null
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("Erro ao deletar categoria:", error);
+    
+    if (error instanceof z.ZodError) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: error.issues[0].message
       };
       return NextResponse.json(response, { status: 400 });
     }

@@ -1,6 +1,11 @@
-export {useBusinessHoursMutations} from "./mutations/useBusinessHoursMutation";
-
 export {
+    useCreateBussinesHours,
+    useUpdateBusinessHours,
+    useToggleDayAvailability,
+    useUpdateLunchBreak,
+  } from "./mutations/useBusinessHoursMutation";
+  
+  export {
     useBusinessHoursById,
     useAvailableSlots,
-} from "./queries/useBusinessHoursQueries";
+  } from "./queries/useBusinessHoursQueries";

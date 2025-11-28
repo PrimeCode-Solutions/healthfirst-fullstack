@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint"
   },
@@ -51,6 +51,7 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.536.0",
+    "mercadopago": "^2.11.0",
     "multer": "^2.0.2",
     "next": "15.4.6",
     "next-themes": "^0.4.6",
@@ -73,6 +74,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/body-parser": "^1.19.6",
     "@types/connect": "^3.4.38",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

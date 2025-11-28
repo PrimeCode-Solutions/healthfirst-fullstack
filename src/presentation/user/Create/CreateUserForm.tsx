@@ -25,10 +25,10 @@ import { Save } from "lucide-react";
 // Função auxiliar de máscara
 const formatPhone = (value: string) => {
   return value
-    .replace(/\D/g, "") // Remove tudo que não é dígito
-    .replace(/(\d{2})(\d)/, "($1) $2") // Coloca parênteses em volta dos dois primeiros dígitos
-    .replace(/(\d{5})(\d)/, "$1-$2") // Coloca hífen entre o quinto e o sexto dígitos
-    .replace(/(-\d{4})\d+?$/, "$1"); // Impede digitar mais de 4 dígitos após o hífen
+    .replace(/\D/g, "")
+    .replace(/(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2")
+    .replace(/(-\d{4})\d+?$/, "$1");
 };
 
 export function CreateUserForm() {
@@ -38,7 +38,7 @@ export function CreateUserForm() {
     <Form {...form}>
       <form onSubmit={handleSubmit} className="space-y-6">
         <FormField
-          control={form.control}
+          control={form.control as any}
           name="clerkId"
           render={({ field }) => (
             <FormItem>
@@ -52,7 +52,7 @@ export function CreateUserForm() {
         />
 
         <FormField
-          control={form.control}
+          control={form.control as any} 
           name="name"
           render={({ field }) => (
             <FormItem>
@@ -66,7 +66,7 @@ export function CreateUserForm() {
         />
 
         <FormField
-          control={form.control}
+          control={form.control as any} 
           name="email"
           render={({ field }) => (
             <FormItem>
@@ -80,7 +80,7 @@ export function CreateUserForm() {
         />
 
         <FormField
-          control={form.control}
+          control={form.control as any}
           name="phone"
           render={({ field }) => (
             <FormItem>
@@ -102,7 +102,7 @@ export function CreateUserForm() {
         />
 
         <FormField
-          control={form.control}
+          control={form.control as any} 
           name="role"
           render={({ field }) => (
             <FormItem>

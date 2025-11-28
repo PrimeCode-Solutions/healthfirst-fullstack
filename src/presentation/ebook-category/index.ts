@@ -1,6 +1,8 @@
-export { useCreateEbookCategory } from "./mutations/useEbookCategoryMutations";
+export {
+  useCreateEbookCategoryMutation,
+  useUpdateEbookCategoryMutation,
+} from "./mutations/useEbookCategoryMutations";
 
 export {
-  useEbookCategories,
-  useEbookCategoryById,
+  useGetEbookCategories,
 } from "./queries/useEbookCategoryQueries";

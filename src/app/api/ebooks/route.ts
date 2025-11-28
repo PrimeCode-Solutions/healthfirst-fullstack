@@ -1,92 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/providers/prisma";
-import { createEbookSchema, ebookFiltersSchema } from "@/lib/validations/ebook";
+import { updateEbookSchema, idParamSchema } from "@/lib/validations/ebook";
 import { ApiResponse, Ebook } from "@/types/ebook";
 import { z } from "zod";
 
-// GET /api/ebooks - Listar ebooks com filtros
-export async function GET(request: NextRequest) {
+// GET /api/ebooks/[id] - Detalhes completos do ebook
+export async function GET(
+  request: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
   try {
-    const { searchParams } = new URL(request.url);
-    
-    const filters = ebookFiltersSchema.parse({
-      categoryId: searchParams.get("categoryId") || undefined,
-      isPremium: searchParams.get("isPremium") === "true" ? true : 
-                 searchParams.get("isPremium") === "false" ? false : undefined,
-      search: searchParams.get("search") || undefined,
-      page: parseInt(searchParams.get("page") || "1"),
-      limit: parseInt(searchParams.get("limit") || "10")
+    const params = await props.params;
+    const { id } = idParamSchema.parse(params);
+
+    const ebook = await prisma.ebook.findUnique({
+      where: { id },
+      include: {
+        category: true
+      }
     });
 
-    // Construir where clause
-    const where: any = { isActive: true };
-    
-    if (filters.categoryId) {
-      where.categoryId = filters.categoryId;
-    }
-    
-    if (filters.isPremium !== undefined) {
-      where.isPremium = filters.isPremium;
-    }
-    
-    if (filters.search) {
-      where.OR = [
-        { title: { contains: filters.search, mode: "insensitive" } },
-        { description: { contains: filters.search, mode: "insensitive" } },
-        { author: { contains: filters.search, mode: "insensitive" } }
-      ];
+    if (!ebook) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: "Ebook não encontrado"
+      };
+      return NextResponse.json(response, { status: 404 });
     }
 
-    // Calcular offset
-    const offset = (filters.page - 1) * filters.limit;
+    // Incrementar view count
+    await prisma.ebook.update({
+      where: { id },
+      data: { viewCount: { increment: 1 } }
+    });
 
-    // Buscar ebooks com paginação
-    const [ebooks, total] = await Promise.all([
-      prisma.ebook.findMany({
-        where,
-        include: {
-          category: true
-        },
-        orderBy: { createdAt: "desc" },
-        skip: offset,
-        take: filters.limit
-      }),
-      prisma.ebook.count({ where })
-    ]);
-
-    const totalPages = Math.ceil(total / filters.limit);
-
-    const response: ApiResponse = {
+    const response: ApiResponse<Ebook> = {
       success: true,
       data: {
-        items: ebooks.map(ebook => ({
-          ...ebook,
-          price: ebook.price ? Number(ebook.price) : null,
-          createdAt: ebook.createdAt.toISOString(),
-          updatedAt: ebook.updatedAt.toISOString(),
-          category: {
-            ...ebook.category,
-            createdAt: ebook.category.createdAt.toISOString(),
-            updatedAt: ebook.category.updatedAt.toISOString()
-          }
-        })),
-        total,
-        page: filters.page,
-        limit: filters.limit,
-        totalPages
+        id: ebook.id,
+        title: ebook.title,
+        description: ebook.description ?? undefined, // Converte null para undefined
+        author: ebook.author,
+        coverImage: ebook.coverImage ?? undefined,
+        fileUrl: ebook.fileUrl,
+        isPremium: ebook.isPremium,
+        price: ebook.price ? Number(ebook.price) : undefined, // Converte Decimal para number
+        categoryId: ebook.categoryId,
+        fileSize: ebook.fileSize ?? undefined,
+        fileType: ebook.fileType,
+        isActive: ebook.isActive,
+        downloadCount: ebook.downloadCount,
+        viewCount: ebook.viewCount,
+        createdAt: ebook.createdAt.toISOString(),
+        updatedAt: ebook.updatedAt.toISOString(),
+        category: {
+          id: ebook.category.id,
+          name: ebook.category.name,
+          description: ebook.category.description ?? undefined, // Converte null para undefined na categoria
+          createdAt: ebook.category.createdAt.toISOString(),
+          updatedAt: ebook.category.updatedAt.toISOString()
+        }
       },
       error: null
     };
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Erro ao buscar ebooks:", error);
+    console.error("Erro ao buscar ebook:", error);
     
     if (error instanceof z.ZodError) {
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message
       };
       return NextResponse.json(response, { status: 400 });
     }
@@ -100,67 +87,51 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/ebooks - Upload de ebook (apenas admin)
-export async function POST(request: NextRequest) {
+// PUT /api/ebooks/[id] - Editar ebook (apenas admin)
+export async function PUT(
+  request: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
   try {
-    const formData = await request.formData();
-    
-    // Extrair dados do formulário
-    const ebookData = {
-      title: formData.get("title") as string,
-      description: formData.get("description") as string || undefined,
-      author: formData.get("author") as string,
-      categoryId: formData.get("categoryId") as string,
-      isPremium: formData.get("isPremium") === "true",
-      price: formData.get("price") ? parseFloat(formData.get("price") as string) : undefined,
-      fileType: ebookFile.type || validatedData.fileType // Extrair tipo do arquivo ou usar o validado
-    };
+    const params = await props.params;
+    const { id } = idParamSchema.parse(params);
 
-    const validatedData = createEbookSchema.parse(ebookData);
-
-    // Verificar se categoria existe
-    const category = await prisma.ebookCategory.findUnique({
-      where: { id: validatedData.categoryId }
+    // Verificar se ebook existe
+    const existingEbook = await prisma.ebook.findUnique({
+      where: { id }
     });
 
-    if (!category) {
+    if (!existingEbook) {
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: "Categoria não encontrada"
+        error: "Ebook não encontrado"
       };
-      return NextResponse.json(response, { status: 400 });
+      return NextResponse.json(response, { status: 404 });
     }
 
-    // Processar upload de arquivos (simplificado)
-    const coverFile = formData.get("coverImage") as File;
-    const ebookFile = formData.get("ebookFile") as File;
+    const body = await request.json();
+    const validatedData = updateEbookSchema.parse(body);
 
-    if (!ebookFile) {
-      const response: ApiResponse = {
-        success: false,
-        data: null,
-        error: "Arquivo do ebook é obrigatório"
-      };
-      return NextResponse.json(response, { status: 400 });
+    // Verificar se categoria existe (se estiver sendo alterada)
+    if (validatedData.categoryId) {
+      const category = await prisma.ebookCategory.findUnique({
+        where: { id: validatedData.categoryId }
+      });
+
+      if (!category) {
+        const response: ApiResponse = {
+          success: false,
+          data: null,
+          error: "Categoria não encontrada"
+        };
+        return NextResponse.json(response, { status: 400 });
+      }
     }
 
-    // Criar ebook
-    // Helper function to sanitize filenames
-    function sanitizeFilename(filename: string): string {
-      return filename
-        .replace(/[^a-zA-Z0-9.\-_]/g, "_") // Replace special characters with underscores
-        .substring(0, 100); // Limit length to 100 characters
-    }
-
-    const ebook = await prisma.ebook.create({
-      data: {
-        ...validatedData,
-        coverImage: coverFile ? `/uploads/covers/${Date.now()}-${coverFile.name}` : null,
-        fileUrl: `/uploads/ebooks/${Date.now()}-${sanitizeFilename(ebookFile.name)}`,
-        fileSize: ebookFile.size,
-        fileType: validatedData.fileType
-      },
+    const updatedEbook = await prisma.ebook.update({
+      where: { id },
+      data: validatedData,
       include: {
         category: true
       }
@@ -169,28 +140,98 @@ export async function POST(request: NextRequest) {
     const response: ApiResponse<Ebook> = {
       success: true,
       data: {
-        ...ebook,
-        price: ebook.price ? Number(ebook.price) : null,
-        createdAt: ebook.createdAt.toISOString(),
-        updatedAt: ebook.updatedAt.toISOString(),
+        id: updatedEbook.id,
+        title: updatedEbook.title,
+        description: updatedEbook.description ?? undefined,
+        author: updatedEbook.author,
+        coverImage: updatedEbook.coverImage ?? undefined,
+        fileUrl: updatedEbook.fileUrl,
+        isPremium: updatedEbook.isPremium,
+        price: updatedEbook.price ? Number(updatedEbook.price) : undefined,
+        categoryId: updatedEbook.categoryId,
+        fileSize: updatedEbook.fileSize ?? undefined,
+        fileType: updatedEbook.fileType,
+        isActive: updatedEbook.isActive,
+        downloadCount: updatedEbook.downloadCount,
+        viewCount: updatedEbook.viewCount,
+        createdAt: updatedEbook.createdAt.toISOString(),
+        updatedAt: updatedEbook.updatedAt.toISOString(),
         category: {
-          ...ebook.category,
-          createdAt: ebook.category.createdAt.toISOString(),
-          updatedAt: ebook.category.updatedAt.toISOString()
+          id: updatedEbook.category.id,
+          name: updatedEbook.category.name,
+          description: updatedEbook.category.description ?? undefined,
+          createdAt: updatedEbook.category.createdAt.toISOString(),
+          updatedAt: updatedEbook.category.updatedAt.toISOString()
         }
       },
       error: null
     };
 
-    return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(response);
   } catch (error) {
-    console.error("Erro ao criar ebook:", error);
+    console.error("Erro ao atualizar ebook:", error);
     
     if (error instanceof z.ZodError) {
       const response: ApiResponse = {
         success: false,
         data: null,
-        error: error.errors[0].message
+        error: error.issues[0].message
+      };
+      return NextResponse.json(response, { status: 400 });
+    }
+
+    const response: ApiResponse = {
+      success: false,
+      data: null,
+      error: "Erro interno do servidor"
+    };
+    return NextResponse.json(response, { status: 500 });
+  }
+}
+
+// DELETE /api/ebooks/[id] - Deletar ebook (apenas admin)
+export async function DELETE(
+  request: NextRequest,
+  props: { params: Promise<{ id: string }> }
+) {
+  try {
+    const params = await props.params;
+    const { id } = idParamSchema.parse(params);
+
+    // Verificar se ebook existe
+    const existingEbook = await prisma.ebook.findUnique({
+      where: { id }
+    });
+
+    if (!existingEbook) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: "Ebook não encontrado"
+      };
+      return NextResponse.json(response, { status: 404 });
+    }
+
+    // Deletar ebook e registros relacionados
+    await prisma.ebook.delete({
+      where: { id }
+    });
+
+    const response: ApiResponse = {
+      success: true,
+      data: { message: "Ebook deletado com sucesso" } as any,
+      error: null
+    };
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("Erro ao deletar ebook:", error);
+    
+    if (error instanceof z.ZodError) {
+      const response: ApiResponse = {
+        success: false,
+        data: null,
+        error: error.issues[0].message
       };
       return NextResponse.json(response, { status: 400 });
     }

@@ -5,7 +5,7 @@ import {
   Prisma,
   AppointmentStatus,
   UserRole,
-} from "../../../../../generated/prisma";
+} from "@/generated/prisma";
 
 const prisma = new PrismaClient();
 
@@ -28,7 +28,7 @@ async function canReadUserAppointments(meId: string, targetUserId: string) {
 // GET /api/appointments/user/:userId
 export async function GET(
   req: NextRequest,
-  ctx: { params: { userId: string } },
+  props: { params: Promise<{ userId: string }> },
 ) {
   try {
     // auth
@@ -37,7 +37,8 @@ export async function GET(
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
     // permissão
-    const { userId } = ctx.params;
+    const params = await props.params;
+    const { userId } = params;
     const allowed = await canReadUserAppointments(user.id, userId);
     if (!allowed)
       return NextResponse.json({ error: "forbidden" }, { status: 403 });

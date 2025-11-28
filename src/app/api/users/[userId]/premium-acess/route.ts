@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@/src/generated/prisma";
+import { PrismaClient } from '@/generated/prisma';
 
 const prisma = new PrismaClient();
 
@@ -34,9 +34,10 @@ async function checkSubscriptionStatusMP(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } },
+  props: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const params = await props.params;
     const { userId } = params;
 
     // Buscar o usuário com sua assinatura local
