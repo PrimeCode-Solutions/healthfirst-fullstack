@@ -1,82 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@/generated/prisma";
-import jwt, { JwtPayload } from "jsonwebtoken";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-config";
 
 const prisma = new PrismaClient();
-const JWT_SECRET = "exemplinho" //aqui da pra pegar do .env()
-
-function validateToken(token: string) {
-  try{
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
-    return { valid: true, expired: false, decoded}
-  } catch (err: any){
-    return {
-      valid: false,
-      expired: err.name === "TokenExpiredError",
-      decoded: null
-    }
-  }
-}
 
 export async function GET() {
   try {
     const configurations = await prisma.businessHours.findFirst();
-    if(!configurations){
-        return NextResponse.json(
-            {error: "Não foi encontrada configuração"},
-            {status: 404}
-        )}
-        
-    return NextResponse.json(configurations, {status: 200})
-
-  } catch (err){
-    console.error(`ERROR in GET/business-hours: ${err}`)
-    return NextResponse.json(
-      {error: "Internal Error"},
-      {status: 404}
-    )
+    if (!configurations) {
+      return NextResponse.json({ error: "Configuração não encontrada" }, { status: 404 });
+    }
+    return NextResponse.json(configurations, { status: 200 });
+  } catch (err) {
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
-  try{
-    const authHeader = request.headers.get("authorization");
-    if(!authHeader){
-      return NextResponse.json(
-        { error: "Token not provided" },
-        { status: 401 }
-      )
+  try {
+    const session = await getServerSession(authOptions);
+    
+    // Se não houver sessão ou ID de usuário
+    if (!session || !session.user || !session.user.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const jwtToken = authHeader.split(" ")[1];
-    const result = validateToken(jwtToken);
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
 
-    if(!result.valid){
-      if(result.expired){
-        return NextResponse.json(
-        { error: "Expired Token" },
-        { status: 401 }
-      )
-      }
-      return NextResponse.json(
-        { error: "Invalid Token" },
-        { status: 401 }
-      )
+    // 3. Verificar permissão de ADMIN
+    if (!user || user.role !== 'ADMIN') {
+       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const body = await request.json()
+    const body = await request.json();
     const updated = await prisma.businessHours.upsert({
-      where: {id: body.id || ""},
+      where: { id: body.id || "default-id" }, 
       update: { ...body },
-      create: { ...body}
+      create: { ...body },
     });
 
     return NextResponse.json(updated, { status: 200 });
-  }catch (err){
+  } catch (err) {
     console.error(`ERROR in PUT/business-hours: ${err}`);
-    return NextResponse.json(
-      {error: "Internal Error"},
-      {status: 500}
-    )
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }

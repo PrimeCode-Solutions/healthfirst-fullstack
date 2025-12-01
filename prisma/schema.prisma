@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -58,13 +55,13 @@ enum ConsultationType {
   FOLLOWUP    // Remarcação/Acompanhamento
 }
 
-// Model do usuário
+// Model do usuário 
 model User {
   id        String   @id @default(cuid())
-  clerkId   String   @unique // ID único do Clerk
   email     String   @unique
   name      String
   phone     String?
+  password  String   // Senha criptografada (hash)
   role      UserRole @default(USER)
   
   // Timestamps
@@ -249,7 +246,7 @@ model Payment {
   @@map("payments")
 }
 
-// Model para assinaturas (apenas para referência local)
+// Model para assinaturas
 model Subscription {
   id                  String             @id @default(cuid())
   userId              String             @unique
@@ -258,13 +255,13 @@ model Subscription {
   mercadoPagoId       String?            @unique
   preapprovalId       String             // ID da assinatura recorrente no MP (OBRIGATÓRIO)
   
-  // Dados básicos (podem vir do webhook ou ser consultados na API MP)
+  // Dados básicos
   planName            String?
   amount              Decimal?           @db.Decimal(10,2)
   currency            String             @default("BRL")
   status              SubscriptionStatus @default(INACTIVE)
   
-  // Apenas para controle local (opcional)
+  // Apenas para controle local
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
   
@@ -278,19 +275,13 @@ model Subscription {
 // Model para webhooks do Mercado Pago
 model WebhookEvent {
   id            String   @id @default(cuid())
-  
-  // Dados do webhook
-  action        String   // "payment.created", "payment.updated", etc.
+  action        String
   apiVersion    String
-  dataId        String   // ID do recurso (payment, subscription, etc.)
+  dataId        String
   dateCreated   DateTime
-  type          String   // "payment", "subscription", etc.
-  
-  // Dados brutos
-  rawData       Json     // Dados completos do webhook
+  type          String
+  rawData       Json
   processed     Boolean  @default(false)
-  
-  // Timestamps
   createdAt     DateTime @default(now())
   
   @@map("webhook_events")

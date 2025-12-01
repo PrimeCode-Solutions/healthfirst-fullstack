@@ -8,7 +8,7 @@ import {
 import { CheckCircle } from "lucide-react";
 import Link from "next/link";
 
-export default async function SucessPage({
+export default async function SuccessPage({
   searchParams,
 }: {
   searchParams: Promise<{
@@ -21,10 +21,10 @@ export default async function SucessPage({
   const paymentId = params.payment_id ?? "indefinido";
 
   return (
-    <main className="flex h-[calc(100vh-5rem-84px)] items-center justify-center">
-      <Card className="m-5 p-6 text-center">
+    <main className="flex min-h-[60vh] items-center justify-center">
+      <Card className="m-6 p-6 text-center">
         <CardHeader className="flex flex-col items-center">
-          <CheckCircle className="mb-2 h-15 w-15 text-green-500" />
+          <CheckCircle className="mb-2 h-16 w-16 text-green-500" />
           <CardTitle>Pagamento Confirmado!</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-center">
@@ -32,8 +32,7 @@ export default async function SucessPage({
             Obrigado! Seu pagamento foi processado com sucesso.
           </p>
           <p className="mt-5 text-sm text-gray-500">
-            <strong>ID do pagamento: </strong>
-            {paymentId}
+            ID do pagamento: <strong className="bg-muted">{paymentId}</strong>
           </p>
 
           <Link href="/dashboard">
