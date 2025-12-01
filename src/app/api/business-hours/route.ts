@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@/generated/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth-config";
 
 const prisma = new PrismaClient();
 
@@ -18,19 +19,25 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const session = await getServerSession(authOptions);
+    
+    // Se não houver sessão ou ID de usuário
+    if (!session || !session.user || !session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({ where: { clerkId: userId } });
-    if (user?.role !== 'ADMIN') {
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    // 3. Verificar permissão de ADMIN
+    if (!user || user.role !== 'ADMIN') {
        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const body = await request.json();
     const updated = await prisma.businessHours.upsert({
-      where: { id: body.id || "default" }, 
+      where: { id: body.id || "default-id" }, 
       update: { ...body },
       create: { ...body },
     });
