@@ -1,5 +1,5 @@
 import api from "@/lib/api";
-import { User } from "@/modules/user/domain/user.interface";
+import { User, CreateUserDTO } from "@/modules/user/domain/user.interface";
 
 interface UpdateUserDto {
   name?: string;
@@ -14,8 +14,18 @@ export const userService = {
     return data;
   },
 
+  createUser: async (userData: CreateUserDTO): Promise<User> => {
+    const { data } = await api.post("/users", userData); 
+    return data;
+  },
+
   updateUser: async (userId: string, userData: UpdateUserDto): Promise<User> => {
     const { data } = await api.put(`/users/${userId}`, userData);
     return data;
   },
+  
+  listUsers: async (): Promise<User[]> => {
+    const { data } = await api.get("/users");
+    return data.data.users;
+  }
 };

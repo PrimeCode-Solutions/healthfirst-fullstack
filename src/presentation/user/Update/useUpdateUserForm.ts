@@ -38,7 +38,7 @@ export const useUpdateUserForm = ({
 
   const handleSubmit = form.handleSubmit(async (data: UpdateUserFormData) => {
     await updateMutation.mutateAsync(
-      { id: user.id, data },
+      { userId: user.id, data },
       {
         onSuccess: () => {
           if (onSuccess) onSuccess();
