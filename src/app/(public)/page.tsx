@@ -51,13 +51,15 @@ export default function Home() {
                             <Button size="lg" className="text-base px-8 py-4">
                                 Explore os serviços
                             </Button>
-                            <Button 
-                                variant="outline" 
-                                size="lg" 
-                                className="text-base px-8 py-4 bg-transparent border-white text-white hover:bg-white hover:text-primary"
-                            >
-                                Agende uma consulta
-                            </Button>
+                            <Link href="/agendar-consulta">
+                                <Button 
+                                    variant="outline" 
+                                    size="lg" 
+                                    className="text-base px-8 py-4 bg-transparent border-white text-white hover:bg-white hover:text-primary"
+                                >
+                                    Agende uma consulta
+                                </Button>
+                            </Link>
                         </div>
                     </div>
                 </div>

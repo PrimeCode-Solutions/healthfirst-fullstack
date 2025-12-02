@@ -36,6 +36,8 @@ export const useUpdateUserMutation = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      
+      toast.success("Dados atualizados com sucesso!");
     },
     onError: (error: any) => {
       console.error("Erro no update:", error);

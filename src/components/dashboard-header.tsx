@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import Image from "next/image";
+import Link from "next/link";
 
 export function DashboardHeader() {
   return (
@@ -14,13 +15,15 @@ export function DashboardHeader() {
         />
         <h1 className="text-base font-medium">Dashboard</h1>
         <div className="ml-auto flex items-center gap-2">
-          <Image
-            width={100}
-            height={100}
-            src="./images/home/logo-principal.svg"
-            alt="User Avatar"
-            className="flex rounded-full sm:hidden"
-          />
+          <Link href="/">
+            <Image
+              width={100}
+              height={100}
+              src="/images/home/logo-principal.svg" 
+              alt="User Avatar"
+              className="flex rounded-full sm:hidden"
+            />
+          </Link>
         </div>
       </div>
     </header>

@@ -9,6 +9,7 @@ import {
   IconUsers,
   IconClock,
   IconCalendarTime,
+  IconHome, 
 } from "@tabler/icons-react";
 import { signOut, useSession } from "next-auth/react";
 import {
@@ -22,6 +23,7 @@ import {
 import { NavMain } from "./nav-main";
 import Image from "next/image";
 import { Button } from "./ui/button";
+import Link from "next/link";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
@@ -80,7 +82,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={navItems} />
       </SidebarContent>
-      <SidebarFooter>
+      
+      <SidebarFooter className="flex flex-col gap-2"> 
+        
+        <Button 
+          variant="outline" 
+          asChild
+          className="w-full justify-start gap-2"
+        >
+          <Link href="/">
+            <IconHome className="size-4" /> 
+            Voltar para o Início
+          </Link>
+        </Button>
+
         <Button 
           variant="outline" 
           onClick={handleLogout}
