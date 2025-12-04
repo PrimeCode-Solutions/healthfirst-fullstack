@@ -1,45 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
+import { MercadoPagoConfig, Preference } from "mercadopago";
 import { prisma } from "@/app/providers/prisma";
-import {
-  AppointmentStatus,
-  PaymentStatus,
-  ConsultationType,
-} from "@/generated/prisma";
-import { z } from "zod";
-import {
-  parseISO,
-  isValid as isValidDate,
-  startOfDay,
-  endOfDay,
-} from "date-fns";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
+import { AppointmentStatus, ConsultationType, PaymentStatus } from "@/generated/prisma";
+import { parseISO, isValid as isValidDate, startOfDay, endOfDay } from "date-fns";
+import { z } from "zod";
 
+// --- Configuração do Mercado Pago ---
+const mpAccessToken = process.env.MP_ACCESS_TOKEN;
+const client = new MercadoPagoConfig({ 
+  accessToken: mpAccessToken || "" 
+});
+const preference = new Preference(client);
+
+// --- Schema de Validação para o GET ---
 const querySchema = z.object({
-  status: z
-    .string()
-    .optional()
-    .refine(
-      (v) => !v || (Object.values(AppointmentStatus) as string[]).includes(v),
-      "invalid_status",
-    ),
+  status: z.string().optional(),
   dateStart: z.string().optional(),
   dateEnd: z.string().optional(),
   userId: z.string().optional(),
   q: z.string().optional(),
-  page: z
-    .string()
-    .optional()
-    .transform((v) => Math.max(parseInt(v ?? "1", 10) || 1, 1)),
-  pageSize: z
-    .string()
-    .optional()
-    .transform((v) => {
+  page: z.string().optional().transform((v) => Math.max(parseInt(v ?? "1", 10) || 1, 1)),
+  pageSize: z.string().optional().transform((v) => {
       const n = Math.max(parseInt(v ?? "20", 10) || 20, 1);
       return Math.min(n, 100);
     }),
 });
 
+// --- GET: Listar Agendamentos (Restaurado Completo) ---
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -48,38 +37,34 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL(req.url);
-    const parsed = querySchema.safeParse(
-      Object.fromEntries(url.searchParams.entries()),
-    );
+    const parsed = querySchema.safeParse(Object.fromEntries(url.searchParams.entries()));
+    
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "validation", issues: parsed.error.issues },
-        { status: 422 },
-      );
+      return NextResponse.json({ error: "Validation error", issues: parsed.error.issues }, { status: 422 });
     }
 
-    const { status, dateStart, dateEnd, userId, q, page, pageSize } =
-      parsed.data;
-
+    const { status, dateStart, dateEnd, userId, q, page, pageSize } = parsed.data;
     const where: any = {};
 
-    if (status) where.status = status as AppointmentStatus;
+    // Filtro de Status
+    if (status && Object.values(AppointmentStatus).includes(status as AppointmentStatus)) {
+      where.status = status as AppointmentStatus;
+    }
 
+    // Permissão de visualização
     if (session.user.role === "ADMIN" || session.user.role === "DOCTOR") {
       if (userId) where.userId = userId;
     } else {
       where.userId = session.user.id;
     }
 
+    // Filtro de Data
     if (dateStart || dateEnd) {
       const ds = dateStart ? parseISO(dateStart) : undefined;
       const de = dateEnd ? parseISO(dateEnd) : undefined;
 
       if ((ds && !isValidDate(ds)) || (de && !isValidDate(de))) {
-        return NextResponse.json(
-          { error: "invalid_date_range" },
-          { status: 400 },
-        );
+        return NextResponse.json({ error: "invalid_date_range" }, { status: 400 });
       }
 
       where.date = {};
@@ -87,12 +72,12 @@ export async function GET(req: NextRequest) {
       if (de) where.date.lte = endOfDay(de);
     }
 
+    // Filtro de Busca (Nome do paciente)
     if (q && q.trim()) {
       where.patientName = { contains: q.trim(), mode: "insensitive" };
     }
 
-    const skip = (page! - 1) * pageSize!;
-    const take = pageSize!;
+    const skip = (page - 1) * pageSize;
 
     const [total, items] = await Promise.all([
       prisma.appointment.count({ where }),
@@ -100,32 +85,10 @@ export async function GET(req: NextRequest) {
         where,
         orderBy: [{ date: "desc" }, { startTime: "asc" }],
         skip,
-        take,
-        select: {
-          id: true,
-          status: true,
-          date: true,
-          startTime: true,
-          endTime: true,
-          type: true,
-          patientName: true,
-          patientEmail: true,
-          patientPhone: true,
-          createdAt: true,
-          updatedAt: true,
-          userId: true,
-          user: { select: { id: true, name: true, email: true } },
-          payment: {
-            select: {
-              id: true,
-              status: true,
-              amount: true,
-              currency: true,
-              preferenceId: true,
-              mercadoPagoId: true,
-              paidAt: true,
-            },
-          },
+        take: pageSize,
+        include: {
+          payment: true,
+          user: { select: { id: true, name: true, email: true } }
         },
       }),
     ]);
@@ -135,298 +98,114 @@ export async function GET(req: NextRequest) {
         total,
         page,
         pageSize,
-        pageCount: Math.ceil(total / pageSize!),
+        pageCount: Math.ceil(total / pageSize),
       },
-      filters: { status, dateStart, dateEnd, userId: where.userId, q },
       items,
     });
+
   } catch (err) {
-    console.error(err);
+    console.error("Erro no GET /appointments:", err);
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
 
-function toMinutes(hhmm: string): number {
-  const [hh, mm] = hhmm.split(":").map(Number);
-  return hh * 60 + mm;
-}
-
-function overlap(aStart: number, aEnd: number, bStart: number, bEnd: number) {
-  return aStart < bEnd && aEnd > bStart;
-}
-
-function isDayEnabled(bh: any, date: Date) {
-  const wd = date.getUTCDay();
-  const map: Record<number, boolean> = {
-    0: bh.sundayEnabled,
-    1: bh.mondayEnabled,
-    2: bh.tuesdayEnabled,
-    3: bh.wednesdayEnabled,
-    4: bh.thursdayEnabled,
-    5: bh.fridayEnabled,
-    6: bh.saturdayEnabled,
-  };
-  return !!map[wd];
-}
-
-async function getBusinessHoursOrThrow() {
-  const bh = await prisma.businessHours.findFirst();
-  if (!bh) throw new Error("BusinessHours não configurado");
-  return bh;
-}
-
-async function createMercadoPagoPreference(input: {
-  appointmentId: string;
-  amount: number;
-  description: string;
-  successUrl?: string;
-  pendingUrl?: string;
-  failureUrl?: string;
-}) {
-  return {
-    mercadoPagoId: `mp_${input.appointmentId}`,
-    preferenceId: `pref_${input.appointmentId}`,
-    init_point: `https://sandbox.mercadopago.com/checkout/v1/redirect?pref_id=pref_${input.appointmentId}`,
-  };
-}
-
-const bodySchema = z.object({
-  date: z
-    .string()
-    .refine((v) => isValidDate(parseISO(v)), "data inválida (use ISO string)"),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/, "startTime deve ser HH:MM"),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/, "endTime deve ser HH:MM"),
-
-  type: z.string().optional(),
-
-  patientName: z.string().min(1),
-  patientEmail: z
-    .string()
-    .email()
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
-  patientPhone: z.string().optional(),
-  notes: z.string().optional(),
-
-  amount: z.union([z.number(), z.string()]),
-  currency: z.string().default("BRL"),
-  description: z.string().min(1),
-
-  successUrl: z.string().url().optional(),
-  pendingUrl: z.string().url().optional(),
-  failureUrl: z.string().url().optional(),
-});
-
+// --- POST: Criar Agendamento (Com Mercado Pago) ---
 export async function POST(req: NextRequest) {
+  console.log("➡️ [POST /appointments] Iniciando...");
+
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Sessão expirada." }, { status: 401 });
     }
 
-    const parsed = bodySchema.safeParse(await req.json());
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "validation", issues: parsed.error.issues },
-        { status: 422 },
-      );
+    if (!mpAccessToken) {
+      return NextResponse.json({ error: "Erro de configuração no servidor." }, { status: 500 });
     }
 
-    const {
-      date,
-      startTime,
-      endTime,
-      type,
-      patientName,
-      patientEmail,
-      patientPhone,
-      notes,
-      amount,
-      currency,
-      description,
-      successUrl,
-      pendingUrl,
-      failureUrl,
-    } = parsed.data;
+    const body = await req.json();
+    const { date, startTime, endTime, type, amount, description, patientName } = body;
 
-    const dateObj = parseISO(date);
-    const startMin = toMinutes(startTime);
-    const endMin = toMinutes(endTime);
-    if (!(endMin > startMin)) {
-      return NextResponse.json(
-        { error: "intervalo de horário inválido" },
-        { status: 400 },
-      );
+    if (!date || !amount) {
+      return NextResponse.json({ error: "Dados obrigatórios faltando." }, { status: 400 });
     }
 
-    const bh = await getBusinessHoursOrThrow();
-    if (!isDayEnabled(bh, dateObj)) {
-      return NextResponse.json(
-        { error: "dia indisponível segundo BusinessHours" },
-        { status: 409 },
-      );
-    }
-    const bhStart = toMinutes(bh.startTime);
-    const bhEnd = toMinutes(bh.endTime);
-    if (startMin < bhStart || endMin > bhEnd) {
-      return NextResponse.json(
-        { error: "fora do horário de funcionamento" },
-        { status: 409 },
-      );
-    }
-    if (bh.lunchBreakEnabled && bh.lunchStartTime && bh.lunchEndTime) {
-      const lStart = toMinutes(bh.lunchStartTime);
-      const lEnd = toMinutes(bh.lunchEndTime);
-      if (overlap(startMin, endMin, lStart, lEnd)) {
-        return NextResponse.json(
-          { error: "intervalo colide com horário de almoço" },
-          { status: 409 },
-        );
-      }
-    }
-    const expected = bh.appointmentDuration ?? 30;
-    if (endMin - startMin !== expected) {
-      return NextResponse.json(
-        { error: "duration_mismatch", expectedMin: expected },
-        { status: 400 },
-      );
-    }
+    // Fallback para URL base
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    const sameDayStart = new Date(
-      Date.UTC(
-        dateObj.getUTCFullYear(),
-        dateObj.getUTCMonth(),
-        dateObj.getUTCDate(),
-        0,
-        0,
-        0,
-      ),
-    );
-    const sameDayEnd = new Date(
-      Date.UTC(
-        dateObj.getUTCFullYear(),
-        dateObj.getUTCMonth(),
-        dateObj.getUTCDate(),
-        23,
-        59,
-        59,
-      ),
-    );
+    // Transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Agendamento
+      const appointment = await tx.appointment.create({
+        data: {
+          userId: session.user.id,
+          date: parseISO(date),
+          startTime,
+          endTime,
+          type: type as ConsultationType || "GENERAL",
+          status: AppointmentStatus.PENDING,
+          patientName: patientName || session.user.name,
+          patientEmail: session.user.email
+        }
+      });
 
-    const dayAppointments = await prisma.appointment.findMany({
-      where: {
-        date: { gte: sameDayStart, lte: sameDayEnd },
-        status: {
-          in: [
-            AppointmentStatus.PENDING,
-            AppointmentStatus.CONFIRMED,
-            AppointmentStatus.COMPLETED,
-          ],
-        },
-      },
-      select: { startTime: true, endTime: true },
-    });
-    const hasCollision = dayAppointments.some((a) =>
-      overlap(startMin, endMin, toMinutes(a.startTime), toMinutes(a.endTime)),
-    );
-    if (hasCollision) {
-      return NextResponse.json({ error: "time_unavailable" }, { status: 409 });
-    }
-
-    let typeValue: ConsultationType = ConsultationType.GENERAL;
-    if (typeof type === "string") {
-      const allowed = Object.values(ConsultationType);
-      if (allowed.includes(type as ConsultationType)) {
-        typeValue = type as ConsultationType;
-      }
-    }
-
-    const normalizedAmount =
-      typeof amount === "number"
-        ? amount
-        : typeof amount === "string"
-          ? Number(amount)
-          : NaN;
-    if (!Number.isFinite(normalizedAmount)) {
-      return NextResponse.json(
-        { error: "amount inválido (use número ou string numérica)" },
-        { status: 400 },
-      );
-    }
-
-    const { appointment, payment, pref } = await prisma.$transaction(
-      async (tx) => {
-        const appointment = await tx.appointment.create({
-          data: {
-            userId: session.user.id,
-            date: dateObj,
-            startTime,
-            endTime,
-            type: typeValue,
-            status: AppointmentStatus.PENDING,
-            patientName,
-            patientEmail,
-            patientPhone,
-            notes,
-          },
-        });
-
-        const pref = await createMercadoPagoPreference({
+      // 2. Pagamento Local
+      const payment = await tx.payment.create({
+        data: {
           appointmentId: appointment.id,
-          amount: normalizedAmount,
-          description,
-          successUrl,
-          pendingUrl,
-          failureUrl,
-        });
+          amount: Number(amount),
+          currency: "BRL",
+          description: description || "Consulta Médica",
+          status: PaymentStatus.PENDING,
+          payerEmail: session.user.email,
+          payerName: session.user.name
+        }
+      });
 
-        const payment = await tx.payment.create({
-          data: {
-            appointmentId: appointment.id,
-            amount: normalizedAmount,
-            currency: currency ?? "BRL",
-            description,
-            status: PaymentStatus.PENDING,
-            mercadoPagoId: pref.mercadoPagoId,
-            preferenceId: pref.preferenceId,
-            payerEmail: patientEmail ?? null,
-            payerName: patientName ?? null,
-            payerPhone: patientPhone ?? null,
-            successUrl: successUrl ?? null,
-            pendingUrl: pendingUrl ?? null,
-            failureUrl: failureUrl ?? null,
+      // 3. Preferência MP
+      const mpPreference = await preference.create({
+        body: {
+          items: [{
+            id: appointment.id,
+            title: description || "Consulta Médica",
+            quantity: 1,
+            unit_price: Number(amount),
+            currency_id: "BRL",
+          }],
+          payer: {
+            email: session.user.email,
+            name: session.user.name,
           },
-        });
+          back_urls: {
+            success: `${baseUrl}/success?payment_id=${payment.id}`,
+            failure: `${baseUrl}/failure`,
+            pending: `${baseUrl}/pending`
+          },
+          // auto_return REMOVIDO para evitar erro em localhost
+          external_reference: payment.id,
+          notification_url: `${process.env.NEXT_PUBLIC_API_URL}/webhooks/mercado-pago`,
+        }
+      });
 
-        return { appointment, payment, pref };
-      },
-    );
-
-    return NextResponse.json(
-      {
-        appointment,
-        payment: {
-          id: payment.id,
-          status: payment.status,
-          amount: payment.amount,
-          currency: payment.currency,
-          preferenceId: payment.preferenceId,
-          init_point: (pref as any).init_point,
+      // 4. Atualiza Pagamento
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          preferenceId: mpPreference.id,
+          pendingUrl: mpPreference.init_point,
         },
-      },
-      { status: 201 },
-    );
+      });
+
+      return { 
+        appointmentId: appointment.id,
+        init_point: mpPreference.init_point 
+      };
+    });
+
+    return NextResponse.json(result, { status: 201 });
+
   } catch (e: any) {
-    console.error(e);
-    if (String(e?.message || "").includes("BusinessHours")) {
-      return NextResponse.json(
-        { error: "BusinessHours não configurado" },
-        { status: 500 },
-      );
-    }
-    if (e?.code === "P2002") {
-      return NextResponse.json({ error: "time_unavailable" }, { status: 409 });
-    }
-    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+    console.error("❌ Erro POST /appointments:", e);
+    return NextResponse.json({ error: "Falha ao criar.", details: e.message }, { status: 500 });
   }
 }
