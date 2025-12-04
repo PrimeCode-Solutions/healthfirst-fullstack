@@ -14,6 +14,7 @@ datasource db {
 // Enum para tipos de usuário
 enum UserRole {
   ADMIN
+  DOCTOR
   USER
 }
 
@@ -70,9 +71,11 @@ model User {
   updatedAt DateTime @updatedAt
   
   // Relações
-  appointments   Appointment[]
+  appointments        Appointment[] @relation("PatientAppointments")
+  doctorAppointments  Appointment[] @relation("DoctorAppointments")
   subscription   Subscription?
   ebookAccess    UserEbookAccess[]
+  businessHours BusinessHours?
   
   @@map("users")
 }
@@ -150,18 +153,20 @@ model UserEbookAccess {
   @@map("user_ebook_access")
 }
 
-// Model para configurações de horários
 model BusinessHours {
-  id                String    @id @default(cuid())
+  id        String   @id @default(cuid())
   
-  // Horários básicos
-  startTime         String    // "08:00"
-  endTime           String    // "18:00"
+  // --- Vínculo com o Médico
+  doctorId  String   @unique 
+  doctor    User     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  // --- Campos de Horários
+  startTime         String    
+  endTime           String    
   lunchBreakEnabled Boolean   @default(false)
-  lunchStartTime    String?   // "12:00"
-  lunchEndTime      String?   // "13:00"
+  lunchStartTime    String?
+  lunchEndTime      String?
   
-  // Dias da semana disponíveis
   mondayEnabled     Boolean   @default(true)
   tuesdayEnabled    Boolean   @default(true)
   wednesdayEnabled  Boolean   @default(true)
@@ -170,12 +175,10 @@ model BusinessHours {
   saturdayEnabled   Boolean   @default(false)
   sundayEnabled     Boolean   @default(false)
   
-  // Configurações gerais
-  appointmentDuration Int     @default(30) // em minutos
-  
-  // Timestamps
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  appointmentDuration Int     @default(30)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   
   @@map("business_hours")
 }
@@ -184,6 +187,7 @@ model BusinessHours {
 model Appointment {
   id          String            @id @default(cuid())
   userId      String
+  doctorId    String?
   
   // Dados do agendamento
   date        DateTime
@@ -203,7 +207,8 @@ model Appointment {
   updatedAt   DateTime         @updatedAt
   
   // Relações
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation("PatientAppointments", fields: [userId], references: [id], onDelete: Cascade)
+  doctor      User?     @relation("DoctorAppointments", fields: [doctorId], references: [id])
   payment     Payment?
   
   @@map("appointments")

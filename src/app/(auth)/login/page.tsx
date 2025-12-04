@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -28,7 +28,8 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+
+function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
@@ -56,10 +57,10 @@ export default function LoginPage() {
 
       if (result?.error) {
         toast.error("E-mail ou senha incorretos.");
-        setIsLoading(false); 
+        setIsLoading(false);
       } else {
         toast.success("Login realizado com sucesso!");
-        router.push(callbackUrl); 
+        router.push(callbackUrl);
       }
     } catch (error) {
       toast.error("Erro ao conectar com o servidor.");
@@ -67,6 +68,97 @@ export default function LoginPage() {
     }
   };
 
+  return (
+    <div className="flex w-full flex-col justify-center px-8 lg:w-1/2 lg:px-16 xl:px-24">
+      <div className="mx-auto w-full max-w-sm space-y-6">
+        <div className="flex flex-col items-center space-y-2 text-center">
+          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+            <Image
+              src="/images/home/logo-principal.svg"
+              width={30}
+              height={30}
+              alt="Logo"
+            />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            HealthFirst
+          </h1>
+          <p className="text-sm text-gray-500">
+            Entre com suas credenciais para continuar
+          </p>
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>E-mail</FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="seu@email.com" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Senha</FormLabel>
+                    <Link href="#" className="text-xs font-medium text-primary hover:underline">
+                      Esqueceu a senha?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <FormControl>
+                      <Input type={showPassword ? "text" : "password"} {...field} />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Entrando...
+                </>
+              ) : (
+                "Entrar"
+              )}
+            </Button>
+          </form>
+        </Form>
+
+        <div className="text-center text-sm">
+          <span className="text-gray-500">Não tem uma conta? </span>
+          <Link href="/register" className="font-medium text-primary hover:underline">
+            Cadastre-se
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full">
       <div className="hidden w-1/2 bg-primary/10 lg:block relative">
@@ -90,92 +182,14 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="flex w-full flex-col justify-center px-8 lg:w-1/2 lg:px-16 xl:px-24">
-        <div className="mx-auto w-full max-w-sm space-y-6">
-          <div className="flex flex-col items-center space-y-2 text-center">
-             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                <Image 
-                   src="/images/home/logo-principal.svg" 
-                   width={30} 
-                   height={30} 
-                   alt="Logo" 
-                />
-             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              HealthFirst
-            </h1>
-            <p className="text-sm text-gray-500">
-              Entre com suas credenciais para continuar
-            </p>
-          </div>
-
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>E-mail</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="seu@email.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between">
-                      <FormLabel>Senha</FormLabel>
-                      <Link href="#" className="text-xs font-medium text-primary hover:underline">
-                        Esqueceu a senha?
-                      </Link>
-                    </div>
-                    <div className="relative">
-                      <FormControl>
-                        <Input type={showPassword ? "text" : "password"} {...field} />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
-                      </Button>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Entrando...
-                  </>
-                ) : (
-                  "Entrar"
-                )}
-              </Button>
-            </form>
-          </Form>
-
-          <div className="text-center text-sm">
-            <span className="text-gray-500">Não tem uma conta? </span>
-            <Link href="/register" className="font-medium text-primary hover:underline">
-              Cadastre-se
-            </Link>
-          </div>
+      {/* Envolva o componente do formulário com Suspense */}
+      <Suspense fallback={
+        <div className="flex w-full items-center justify-center lg:w-1/2">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
         </div>
-      </div>
+      }>
+        <LoginFormContent />
+      </Suspense>
     </div>
   );
 }

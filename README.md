@@ -64,7 +64,7 @@ Esta é a maneira mais simples e robusta. O banco de dados e a aplicação sobem
 2. **Configurar Banco de Dados**
    Na primeira execução, é necessário criar as tabelas no banco (que inicia vazio):
    ```bash
-   docker exec -it healthfirst-app npx prisma migrate deploy
+   docker exec -it healthfirst-app npx prisma@6.15.0 migrate deploy
    ```
 3. **Acessar**
    
