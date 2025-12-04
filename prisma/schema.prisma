@@ -310,3 +310,24 @@ model ProcessedWebhookEvent {
   @@index([processed])
   @@map("processed_webhook_events")
 }
+
+model AppointmentHistory {
+  id          String   @id @default(cuid())
+  originalId  String?  // ID original do agendamento
+  
+  userId      String   // Paciente
+  doctorId    String?  // Médico responsável
+  
+  date        DateTime
+  status      String   // "CANCELLED", "COMPLETED" (caso arquivemos no futuro)
+  
+  // Motivo do cancelamento/exclusão
+  // Ex: "TIMEOUT_PAYMENT", "MANUAL_ADMIN", "MANUAL_DOCTOR", "MANUAL_PATIENT"
+  reason      String   
+  
+  amount      Decimal? @db.Decimal(10,2)
+  
+  archivedAt  DateTime @default(now())
+
+  @@map("appointment_history")
+}

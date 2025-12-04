@@ -11,11 +11,11 @@ export const useCreateUserForm = () => {
   const form = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
-      clerkId: "",
       name: "",
       email: "",
       phone: "",
-      role: UserRole.USER,
+      password: "",
+      role: UserRole.DOCTOR,
     },
   });
 

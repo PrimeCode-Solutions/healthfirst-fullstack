@@ -49,6 +49,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: "Visão Geral", url: "/dashboard", icon: IconCalendarUser },
     { title: "Agendamentos", url: "/dashboard/agendamentos", icon: IconCalendarTime }, 
     { title: "Gerenciar Usuários", url: "/dashboard/clientes", icon: IconUsers },
+    { title: "Gerenciar Médicos", url: "/dashboard/medicos", icon: IconUsers },
     { title: "Gestão de Conteúdo", url: "/dashboard/conteudo", icon: IconNotebook }, 
     { title: "Configurações", url: "/dashboard/config", icon: IconSettings },
   ];

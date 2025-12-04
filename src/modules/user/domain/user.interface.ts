@@ -50,11 +50,11 @@ export interface CurrentUserAuthenticated extends UserWithSubscription {
 
 // DTOs
 export interface CreateUserDTO {
-  clerkId: string;
   email: string;
   name: string;
   phone?: string;
   role?: UserRole;
+  password?: string;
 }
 
 export interface UpdateUserDTO {

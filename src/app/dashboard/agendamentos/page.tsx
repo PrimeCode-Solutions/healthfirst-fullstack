@@ -13,11 +13,37 @@ import { EditAppointmentForm } from "@/presentation/appointments/update/EditAppo
 import { useAppointments } from "@/presentation/appointments/queries/useAppointmentQueries";
 import { useDeleteAppointmentMutation } from "@/presentation/appointments/mutations/useAppointmentMutations";
 import { startOfDay, endOfDay, format } from "date-fns";
-import { Loader2, Clock, User, Trash2, Edit2 } from "lucide-react";
+import { Loader2, Clock, User, Trash2, Edit2, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 
-function AppointmentItem({ appointment, onEdit, onDelete }: { appointment: any, onEdit: (apt: any) => void, onDelete: (id: string) => void }) {
+function AppointmentItem({ 
+  appointment, 
+  onEdit, 
+  onDelete, 
+  currentUser 
+}: { 
+  appointment: any, 
+  onEdit: (apt: any) => void, 
+  onDelete: (id: string) => void,
+  currentUser: any 
+}) {
+  
+  // Lógica de Permissão
+  const isOwner = currentUser?.id === appointment.userId;
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const isAssignedDoctor = appointment.doctorId === currentUser?.id;
+  const canDelete = isOwner || isAdmin || isAssignedDoctor;
+
+  const handleDeleteClick = () => {
+    if (!canDelete) {
+      toast.error("Você não tem permissão para excluir este agendamento.");
+      return;
+    }
+    onDelete(appointment.id);
+  };
+
   return (
     <div className="flex items-center justify-between p-4 border rounded-lg mb-2 bg-card hover:bg-accent/5 transition-colors">
       <div className="flex flex-col gap-1">
@@ -39,8 +65,15 @@ function AppointmentItem({ appointment, onEdit, onDelete }: { appointment: any, 
             <Edit2 className="h-4 w-4" />
          </Button>
          
-         <Button variant="destructive" size="icon" onClick={() => onDelete(appointment.id)}>
-            <Trash2 className="h-4 w-4" />
+         {/* Botão de Exclusão com Feedback */}
+         <Button 
+            variant="destructive" 
+            size="icon" 
+            onClick={handleDeleteClick}
+            className={!canDelete ? "opacity-50 cursor-not-allowed hover:bg-destructive" : ""}
+            title={!canDelete ? "Permissão negada" : "Excluir agendamento"}
+         >
+            {canDelete ? <Trash2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
          </Button>
       </div>
     </div>
@@ -127,6 +160,7 @@ export default function AgendamentosPage() {
                   <AppointmentItem 
                     key={apt.id} 
                     appointment={apt} 
+                    currentUser={session?.user}
                     onEdit={(apt) => setEditingAppointment(apt)}
                     onDelete={(id) => setDeletingId(id)}
                   />

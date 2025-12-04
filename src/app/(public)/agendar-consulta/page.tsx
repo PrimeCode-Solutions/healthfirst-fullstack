@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, Loader2, LogIn, UserPlus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -18,6 +18,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ptBR } from "react-day-picker/locale";
@@ -26,31 +34,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { format } from "date-fns";
-
-
-const doctors = [
-  { id: "1", name: "Dr. João Silva" },
-  { id: "2", name: "Dra. Maria Santos" },
-  { id: "3", name: "Dr. Pedro Costa" },
-];
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 const consultationTypes = [
   { id: "GENERAL", name: "Consulta Geral", price: 150.00 },
   { id: "URGENT", name: "Consulta Especializada", price: 250.00 },
   { id: "FOLLOWUP", name: "Retorno", price: 100.00 },
-];
-
-const availableTimes = [
-  "8:00",
-  "9:00",
-  "10:00",
-  "11:00",
-  "13:00",
-  "14:00",
-  "15:00",
-  "16:00",
-  "17:00",
-  "18:00",
 ];
 
 function formatTime(time: string) {
@@ -70,16 +60,41 @@ export default function AppointmentBooking() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Estado para controlar o Dialog de Login
+  const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
+
+  // 1. Buscar Médicos da API
+  const { data: doctorsList } = useQuery({
+    queryKey: ["public-doctors"],
+    queryFn: async () => {
+      // Agora a API permite role=DOCTOR sem autenticação
+      const res = await api.get("/users?role=DOCTOR"); 
+      return res.data.data.users;
+    },
+  });
+
+  // 2. Buscar Slots Disponíveis
+  const { data: availableTimes, isLoading: isLoadingSlots } = useQuery({
+    queryKey: ["slots", selectedDoctor, selectedDate?.toISOString()],
+    queryFn: async () => {
+      if (!selectedDoctor || !selectedDate) return [];
+      const res = await api.get(`/business-hours/available-slots?date=${selectedDate.toISOString()}&doctorId=${selectedDoctor}`);
+      return res.data;
+    },
+    enabled: !!selectedDoctor && !!selectedDate,
+  });
 
   const handleBooking = async () => {
-    if (status === "unauthenticated") {
-      toast.error("Faça login para continuar o agendamento.");
-      router.push("/login?callbackUrl=/agendar-consulta");
+    // Validação de campos ANTES de checar o login
+    if (!selectedDate || !selectedTime || !selectedConsultationType || !selectedDoctor) {
+      toast.error("Por favor, preencha todos os campos.");
       return;
     }
 
-    if (!selectedDate || !selectedTime || !selectedConsultationType || !selectedDoctor) {
-      toast.error("Por favor, preencha todos os campos.");
+    // Se não estiver logado, abre o Pop-up
+    if (status === "unauthenticated") {
+      setIsLoginDialogOpen(true);
       return;
     }
 
@@ -87,15 +102,14 @@ export default function AppointmentBooking() {
 
     try {
       const startTime24h = formatTime(selectedTime);
-      
       const [startHour, startMinute] = startTime24h.split(":").map(Number);
-      const endHour = startHour + 1;
-      const endTime24h = `${String(endHour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}`;
+      const endHour = startMinute === 30 ? startHour + 1 : startHour;
+      const endMinute = startMinute === 30 ? 0 : 30;
+      const endTime24h = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`;
 
       const typeData = consultationTypes.find(t => t.id === selectedConsultationType);
-      const doctorData = doctors.find(d => d.id === selectedDoctor);
+      const doctorData = doctorsList?.find((d: any) => d.id === selectedDoctor);
       
-      // 3. Enviar para API
       const { data } = await api.post("/appointments", {
         date: selectedDate.toISOString(),
         startTime: startTime24h,
@@ -103,10 +117,10 @@ export default function AppointmentBooking() {
         type: selectedConsultationType,
         amount: typeData?.price || 150,
         description: `Agendamento: ${typeData?.name} com ${doctorData?.name}`,
-        patientName: session?.user?.name
+        patientName: session?.user?.name,
+        doctorId: selectedDoctor // Envia o ID do médico selecionado
       });
-
-      // 4. Redirecionar
+      
       if (data.init_point) {
         window.location.href = data.init_point;
       } else {
@@ -128,9 +142,7 @@ export default function AppointmentBooking() {
             Agende sua consulta
           </h1>
           <p className="leading-relaxed text-[#598C75]">
-            Escolha a data e o horário que melhor lhe convir. Selecione o médico
-            e o tipo de consulta de sua preferência para ver os horários
-            disponíveis.
+            Escolha o médico especialista e o horário ideal para você.
           </p>
         </div>
 
@@ -139,7 +151,7 @@ export default function AppointmentBooking() {
             <div className="grid grid-cols-1 justify-between gap-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm md:grid-cols-[1fr_2fr]">
               <div className="flex flex-col gap-4">
                 <div>
-                  <p className="font-medium text-gray-700">Escolha o médico e o tipo de consulta</p>
+                  <p className="font-medium text-gray-700">Detalhes da Consulta</p>
                 </div>
                 
                 {/* Seletor de Médico */}
@@ -152,8 +164,8 @@ export default function AppointmentBooking() {
                       className="h-12 justify-between border-gray-200 bg-white"
                     >
                       {selectedDoctor
-                        ? doctors.find((doctor) => doctor.id === selectedDoctor)?.name
-                        : "Selecione Médico"}
+                        ? doctorsList?.find((doctor: any) => doctor.id === selectedDoctor)?.name
+                        : "Selecione o Médico"}
                       <ChevronsUpDown className="opacity-50 h-4 w-4" />
                     </Button>
                   </PopoverTrigger>
@@ -163,14 +175,15 @@ export default function AppointmentBooking() {
                       <CommandList>
                         <CommandEmpty>Nenhum médico encontrado.</CommandEmpty>
                         <CommandGroup>
-                          {doctors.map((doctor) => (
+                          {doctorsList?.map((doctor: any) => (
                             <CommandItem
                               className="cursor-pointer"
                               key={doctor.id}
                               value={doctor.id}
                               onSelect={(currentValue) => {
-                                setSelectedDoctor(currentValue === selectedDoctor ? "" : currentValue);
+                                setSelectedDoctor(currentValue === selectedDoctor ? "" : doctor.id);
                                 setDoctorOpen(false);
+                                setSelectedTime("");
                               }}
                             >
                               {doctor.name}
@@ -199,15 +212,13 @@ export default function AppointmentBooking() {
                     >
                       {selectedConsultationType
                         ? consultationTypes.find((type) => type.id === selectedConsultationType)?.name
-                        : "Selecione o tipo de consulta"}
+                        : "Selecione o tipo"}
                       <ChevronsUpDown className="opacity-50 h-4 w-4" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[300px] p-0">
                     <Command>
-                      <CommandInput placeholder="Buscar tipo de consulta..." className="h-9" />
                       <CommandList>
-                        <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
                         <CommandGroup>
                           {consultationTypes.map((type) => (
                             <CommandItem
@@ -215,7 +226,7 @@ export default function AppointmentBooking() {
                               key={type.id}
                               value={type.id}
                               onSelect={(currentValue) => {
-                                setSelectedConsultationType(currentValue === selectedConsultationType ? "" : currentValue);
+                                setSelectedConsultationType(currentValue === selectedConsultationType ? "" : type.id);
                                 setConsultationOpen(false);
                               }}
                             >
@@ -244,8 +255,11 @@ export default function AppointmentBooking() {
                 defaultMonth={new Date()}
                 numberOfMonths={isMobile ? 1 : 2}
                 selected={selectedDate}
-                onSelect={setSelectedDate}
-                disabled={(date) => date < new Date() || date.getDay() === 0}
+                onSelect={(date) => {
+                    setSelectedDate(date);
+                    setSelectedTime("");
+                }}
+                disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
                 className="w-full rounded-lg p-0"
                 classNames={{
                   day_button: "cursor-pointer hover:bg-accent rounded-md",
@@ -255,18 +269,24 @@ export default function AppointmentBooking() {
             </div>
 
             {/* Horários disponíveis */}
-            {selectedDate && (
+            {selectedDate && selectedDoctor && (
               <div className="mb-5 w-full md:mt-5 animate-in fade-in slide-in-from-bottom-2">
                 <h2 className="mb-4 text-xl font-semibold text-gray-900">
                   Horários disponíveis para {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
                 </h2>
+                
+                {isLoadingSlots ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Carregando horários...
+                    </div>
+                ) : availableTimes && availableTimes.length > 0 ? (
                 <ToggleGroup
                   type="single"
                   value={selectedTime}
                   onValueChange={setSelectedTime}
                   className="grid w-full grid-cols-2 justify-start gap-3 sm:grid-cols-4 md:flex md:flex-wrap"
                 >
-                  {availableTimes.map((time) => (
+                  {availableTimes.map((time: string) => (
                     <ToggleGroupItem
                       key={time}
                       value={time}
@@ -276,6 +296,9 @@ export default function AppointmentBooking() {
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
+                ) : (
+                    <p className="text-red-500">Nenhum horário disponível para este médico nesta data.</p>
+                )}
               </div>
             )}
           </section>
@@ -304,6 +327,43 @@ export default function AppointmentBooking() {
           </div>
         </div>
       </div>
+
+      {/* Dialog de Login/Cadastro */}
+      <Dialog open={isLoginDialogOpen} onOpenChange={setIsLoginDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Identificação Necessária</DialogTitle>
+            <DialogDescription>
+              Para finalizar seu agendamento e realizar o pagamento, você precisa estar logado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+             <Link href="/login?callbackUrl=/agendar-consulta" className="w-full">
+                <Button className="w-full" variant="default">
+                   <LogIn className="mr-2 h-4 w-4" /> Fazer Login
+                </Button>
+             </Link>
+             <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Ou
+                  </span>
+                </div>
+              </div>
+             <Link href="/register?callbackUrl=/agendar-consulta" className="w-full">
+                <Button className="w-full" variant="outline">
+                   <UserPlus className="mr-2 h-4 w-4" /> Criar Conta
+                </Button>
+             </Link>
+          </div>
+          <DialogFooter>
+             <Button variant="ghost" onClick={() => setIsLoginDialogOpen(false)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

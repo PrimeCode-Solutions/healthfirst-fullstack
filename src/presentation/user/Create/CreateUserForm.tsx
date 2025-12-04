@@ -20,9 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { UserRole } from "@/modules/user/domain/user.interface";
-import { Save } from "lucide-react";
+import { Save, Lock } from "lucide-react";
 
-// Função auxiliar de máscara
 const formatPhone = (value: string) => {
   return value
     .replace(/\D/g, "")
@@ -36,49 +35,57 @@ export function CreateUserForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        
+        {/* Campo Nome */}
         <FormField
           control={form.control as any}
-          name="clerkId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Clerk ID</FormLabel>
-              <FormControl>
-                <Input placeholder="ID do Clerk (ex: user_...)" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control as any} 
           name="name"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Nome Completo</FormLabel>
               <FormControl>
-                <Input placeholder="Ex: João da Silva" {...field} />
+                <Input placeholder="Ex: Dr. João Silva" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
+        {/* Campo Email */}
         <FormField
-          control={form.control as any} 
+          control={form.control as any}
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>E-mail</FormLabel>
+              <FormLabel>E-mail de Acesso</FormLabel>
               <FormControl>
-                <Input placeholder="Ex: joao@email.com" {...field} />
+                <Input placeholder="medico@healthfirst.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
+        {/* Campo Senha (NOVO) */}
+        <FormField
+          control={form.control as any}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Senha de Acesso</FormLabel>
+              <FormControl>
+                <div className="relative">
+                    <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input type="password" placeholder="******" className="pl-9" {...field} />
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {/* Campo Telefone */}
         <FormField
           control={form.control as any}
           name="phone"
@@ -87,13 +94,13 @@ export function CreateUserForm() {
               <FormLabel>Telefone</FormLabel>
               <FormControl>
                 <Input
-                  placeholder="Ex: (11) 99999-9999"
+                  placeholder="(82) 00000-0000"
                   {...field}
                   onChange={(e) => {
                     const formatted = formatPhone(e.target.value);
                     field.onChange(formatted);
                   }}
-                  maxLength={15} 
+                  maxLength={15}
                 />
               </FormControl>
               <FormMessage />
@@ -101,8 +108,9 @@ export function CreateUserForm() {
           )}
         />
 
+        {/* Campo Role */}
         <FormField
-          control={form.control as any} 
+          control={form.control as any}
           name="role"
           render={({ field }) => (
             <FormItem>
@@ -114,9 +122,9 @@ export function CreateUserForm() {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value={UserRole.USER}>Paciente</SelectItem>
                   <SelectItem value={UserRole.DOCTOR}>Médico</SelectItem>
-                  <SelectItem value={UserRole.ADMIN}>Admin Master</SelectItem>
+                  <SelectItem value={UserRole.ADMIN}>Administrador</SelectItem>
+                  <SelectItem value={UserRole.USER}>Paciente</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
@@ -124,9 +132,9 @@ export function CreateUserForm() {
           )}
         />
 
-        <Button type="submit" disabled={isPending} className="w-full">
+        <Button type="submit" disabled={isPending} className="w-full mt-4">
           <Save className="mr-2 h-4 w-4" />
-          {isPending ? "Salvando..." : "Salvar Usuário"}
+          {isPending ? "Salvando..." : "Criar Usuário"}
         </Button>
       </form>
     </Form>

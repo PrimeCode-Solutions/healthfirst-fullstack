@@ -124,21 +124,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { date, startTime, endTime, type, amount, description, patientName } = body;
+    const { date, startTime, endTime, type, amount, description, patientName, doctorId } = body;
 
     if (!date || !amount) {
       return NextResponse.json({ error: "Dados obrigatórios faltando." }, { status: 400 });
     }
 
-    // Fallback para URL base
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    // Transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Agendamento
-      const appointment = await tx.appointment.create({
+    const { appointment, payment } = await prisma.$transaction(async (tx) => {
+      const newAppointment = await tx.appointment.create({
         data: {
           userId: session.user.id,
+          doctorId: doctorId,
           date: parseISO(date),
           startTime,
           endTime,
@@ -149,10 +147,9 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // 2. Pagamento Local
-      const payment = await tx.payment.create({
+      const newPayment = await tx.payment.create({
         data: {
-          appointmentId: appointment.id,
+          appointmentId: newAppointment.id,
           amount: Number(amount),
           currency: "BRL",
           description: description || "Consulta Médica",
@@ -162,8 +159,12 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // 3. Preferência MP
-      const mpPreference = await preference.create({
+      return { appointment: newAppointment, payment: newPayment };
+    });
+
+    let mpPreference;
+    try {
+      mpPreference = await preference.create({
         body: {
           items: [{
             id: appointment.id,
@@ -181,28 +182,28 @@ export async function POST(req: NextRequest) {
             failure: `${baseUrl}/failure`,
             pending: `${baseUrl}/pending`
           },
-          // auto_return REMOVIDO para evitar erro em localhost
           external_reference: payment.id,
           notification_url: `${process.env.NEXT_PUBLIC_API_URL}/webhooks/mercado-pago`,
         }
       });
+    } catch (mpError) {
+      console.error("Erro no Mercado Pago:", mpError);
+      await prisma.appointment.delete({ where: { id: appointment.id } });
+      return NextResponse.json({ error: "Erro ao comunicar com gateway de pagamento." }, { status: 502 });
+    }
 
-      // 4. Atualiza Pagamento
-      await tx.payment.update({
-        where: { id: payment.id },
-        data: {
-          preferenceId: mpPreference.id,
-          pendingUrl: mpPreference.init_point,
-        },
-      });
-
-      return { 
-        appointmentId: appointment.id,
-        init_point: mpPreference.init_point 
-      };
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        preferenceId: mpPreference.id,
+        pendingUrl: mpPreference.init_point,
+      },
     });
 
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json({ 
+      appointmentId: appointment.id,
+      init_point: mpPreference.init_point 
+    }, { status: 201 });
 
   } catch (e: any) {
     console.error("❌ Erro POST /appointments:", e);

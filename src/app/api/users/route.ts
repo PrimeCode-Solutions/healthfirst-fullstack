@@ -6,21 +6,25 @@ import bcrypt from "bcryptjs";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session || (session.user.role !== "ADMIN" && session.user.role !== "DOCTOR")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const url = new URL(req.url);
     const roleFilter = url.searchParams.get("role");
+
+    if (roleFilter !== "DOCTOR") {
+        const session = await getServerSession(authOptions);
+        if (!session || (session.user.role !== "ADMIN" && session.user.role !== "DOCTOR")) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+    }
 
     const where: any = {};
 
     if (roleFilter) {
       where.role = roleFilter;
-    } else if (session.user.role === "DOCTOR") {
-      where.role = "USER";
+    } else {
+       const session = await getServerSession(authOptions);
+       if (session?.user.role === "DOCTOR") {
+         where.role = "USER";
+       }
     }
 
     const users = await prisma.user.findMany({
@@ -29,14 +33,14 @@ export async function GET(req: NextRequest) {
         id: true,
         name: true,
         email: true,
-        phone: true,
-        role: true,
-        createdAt: true,
-        _count: {
-          select: { appointments: true }
-        }
+        phone: true,      
+        role: true,       
+        createdAt: true, 
+        _count: {         
+          select: { appointments: true } 
+        } 
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { name: 'asc' }
     });
 
     return NextResponse.json({ success: true, data: { users } });
@@ -49,15 +53,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    // Apenas ADMIN pode criar usuários diretamente pelo dashboard (ajuste conforme regra)
+    
     if (!session || session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ error: "Acesso negado." }, { status: 403 });
     }
 
     const body = await req.json();
     
-    if (!body.email || !body.name) {
-      return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
+    if (!body.email || !body.name || !body.password) {
+      return NextResponse.json({ error: "Nome, email e senha são obrigatórios." }, { status: 400 });
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -65,10 +69,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: "Email já cadastrado" }, { status: 409 });
+      return NextResponse.json({ error: "Este email já está cadastrado." }, { status: 409 });
     }
 
-    const defaultPassword = await bcrypt.hash("Mudar@123", 10);
+    const hashedPassword = await bcrypt.hash(body.password, 10);
 
     const newUser = await prisma.user.create({
       data: {
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
         email: body.email,
         phone: body.phone,
         role: body.role || "USER",
-        password: defaultPassword, 
+        password: hashedPassword,
       }
     });
 
@@ -86,6 +90,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error("Erro ao criar usuário:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
   }
 }

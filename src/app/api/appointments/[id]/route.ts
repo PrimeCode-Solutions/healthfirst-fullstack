@@ -272,32 +272,44 @@ export async function DELETE(
 
     const appt = await prisma.appointment.findUnique({
       where: { id },
-      include: { payment: true },
+      include: { payment: true }
     });
 
-    if (!appt)
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-
-    if (appt.userId !== session.user.id && session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!appt) {
+      return NextResponse.json({ error: "Agendamento não encontrado." }, { status: 404 });
     }
 
-    if (appt.status === AppointmentStatus.CANCELLED) {
-      return new NextResponse(null, { status: 204 });
+    const isOwner = appt.userId === session.user.id;
+    const isAdmin = session.user.role === "ADMIN";
+    const isAssignedDoctor = appt.doctorId === session.user.id;
+    
+    // Verificação de Permissão
+    if (!isOwner && !isAdmin && !isAssignedDoctor) {
+      return NextResponse.json({ 
+        error: "Permissão negada. Apenas o médico responsável ou administradores podem excluir este agendamento." 
+      }, { status: 403 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      if (appt.payment) {
-        await tx.payment.update({
-          where: { id: appt.payment.id },
-          data: { status: PaymentStatus.CANCELLED },
-        });
+    // Definir o motivo baseado em quem está excluindo
+    let reason = "MANUAL_UNKNOWN";
+    if (isAdmin) reason = "MANUAL_ADMIN";
+    else if (isAssignedDoctor) reason = "MANUAL_DOCTOR";
+    else if (isOwner) reason = "MANUAL_PATIENT";
+
+    // Salvar no Histórico
+    await prisma.appointmentHistory.create({
+      data: {
+        originalId: appt.id,
+        userId: appt.userId,
+        doctorId: appt.doctorId,
+        date: appt.date,
+        status: "CANCELLED",
+        reason: reason,
+        amount: appt.payment?.amount || 0
       }
-      await tx.appointment.update({
-        where: { id },
-        data: { status: AppointmentStatus.CANCELLED },
-      });
     });
+
+    await prisma.appointment.delete({ where: { id } });
 
     return new NextResponse(null, { status: 204 });
   } catch (e) {

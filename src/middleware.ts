@@ -21,6 +21,5 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/api/appointments/:path*",
-    "/api/users/:path*",
   ],
 };

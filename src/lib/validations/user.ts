@@ -2,7 +2,6 @@ import { z } from "zod";
 import { UserRole } from "@/modules/user/domain/user.interface";
 
 export const createUserSchema = z.object({
-  clerkId: z.string().min(1, "Clerk ID é obrigatório"),
   name: z
     .string()
     .min(3, "O nome deve ter pelo menos 3 caracteres"),
@@ -12,7 +11,10 @@ export const createUserSchema = z.object({
   phone: z
     .string()
     .min(1, "O telefone é obrigatório")
-    .min(14, "Telefone incompleto"),
+    .min(10, "Telefone incompleto"),
+  password: z
+    .string()
+    .min(6, "A senha deve ter pelo menos 6 caracteres"),
   role: z.nativeEnum(UserRole), 
 });
 
