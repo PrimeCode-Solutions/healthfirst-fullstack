@@ -25,6 +25,67 @@ function mapStatus(status: string | undefined): PaymentStatus | undefined {
     }
 }
 
+function validateMercadoPagoSignature(
+    req: Request,
+    bodyText: string
+): boolean {
+    const secret = process.env.MP_WEBHOOK_SECRET;
+    if(!secret) {
+        console.error("[Webhook] MP_WEBHOOK_SECRET não configurado");
+        return false;
+    }
+
+    const signature = req.headers.get("x-signature");
+    const requestId =req.headers.get("x-request-id");
+
+    if(!signature || !requestId) {
+        console.error("[Webhook] Headers x-signature ou x-request-id ausentes");
+        return false;
+    }
+    
+    try {
+        const parts = signature.split(",");
+        const ts = parts.find((p) => p.startsWith("ts="))?.split("=")[1];
+        const hash = parts.find((p) => p.startsWith("v1="))?.split("=")[1];
+
+        if(!ts || !hash) {
+            console.error("[Webhook] Formato de assinatura inválido");
+            return false;
+        }
+
+        const body = JSON.parse(bodyText);
+        const dataId = body.data?.id;
+
+        if (!dataId) {
+            console.error("[Webhook] data.id não encontrado no body");
+            return false;
+        }
+
+        const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+
+        const expectedHash = crypto
+              .createHmac("sha256", secret)
+              .update(manifest)
+              .digest("hex");
+
+        const isValid = expectedHash === hash;
+
+        if(!isValid){
+            console.error("[Webhook] Hash inválido", {
+                received: hash,
+                calculated: expectedHash,
+                manifest,
+            });
+        }
+
+        return isValid;
+    
+    }catch (error) {
+        console.error("[Webhook] Erro ao validar assinatura:", error);
+        return false;
+    }
+}
+
 async function isEventAlreadyProcessed(eventId: string): Promise<boolean> {
     const existingEvent = await prisma.processedWebhookEvent.findUnique({
         where: { eventId },
@@ -37,21 +98,26 @@ async function registerEventProcessing(
     eventId: string,
     type: string,
     action: string
-) : Promise<void> {
-    await prisma.processedWebhookEvent.upsert({
-        where: { eventId },
-        create: {
+) : Promise<boolean> {
+    try{
+    await prisma.processedWebhookEvent.create({
+        data: {
             eventId,
             type,
             action,
             processed: false,
             attempts: 1,
         },
-        update: {
-            attempts: { increment: 1 },
-            updatedAt: new Date(),
-        }
     });
+    return true;
+   } catch(error: any){
+       if(error.code === "P2002") {
+         console.log("[Webhook] Evento duplicado detectado via DB:", eventId);
+         return false;
+       }
+
+       throw error;
+   }
 }
 
 async function registerEventError(eventId: string, error: string): Promise<void> {
@@ -66,54 +132,36 @@ async function registerEventError(eventId: string, error: string): Promise<void>
     });
 }
 
-export async function POST (req: Request){
+export async function POST(req: Request){
     const startTime = Date.now()
     try {
-        const signature = req.headers.get("x-signature") || "";
-        
-        if(!signature || !process.env.MP_WEBHOOK_SECRET) {
-            console.error("[Webhook] Erro: Assinatura ausente ou secret não configurado");
-            return new Response("Assinatura inválida", { status: 401 });
-        }
-
-        const parts = Object.fromEntries(
-            signature.split(",").map(p => p.trim().split("="))
-        );
-
-        const receivedHash = parts["hash"];
-
         const bodyText = await req.text();
-            
-        const hash = crypto
-        .createHmac("sha256", process.env.MP_WEBHOOK_SECRET)
-        .update(bodyText)
-        .digest("hex");
-        
-        if(hash !== receivedHash) {
-        console.error("[Webhook] Erro: Hash inválido", {
-            received: receivedHash,
-            calculated: hash,
-        });
-            return new Response("Assinatura inválida", { status: 401 })
+
+        if(!validateMercadoPagoSignature(req, bodyText)) {
+            return new Response("Assinatura inválida", { status: 401});
         }
-        
+
         const body = JSON.parse(bodyText);
 
         console.log("[Webhook] Webhook recebido:", {
-            eventId: body.id,
+            eventId: body.id, 
             type: body.type,
             action: body.action,
             dataId: body.data?.id,
-        });
-        
-        const eventId = body.id?.toString();
-        if(!eventId) {
-            console.error("[Webhook] Id do evento não encontrado no payload");
-            return new Response("ID do evento não encontrado", { status: 400 });
-        }
+        })
 
-        const alreadyProcessed = await isEventAlreadyProcessed(eventId);
-        if (alreadyProcessed) {
+        const eventId = body.id?.toString();
+
+       if(!eventId){
+          console.error("[Webhook] Id do evento não encontrado no payload");
+          return new Response("ID do evento não encontrado", { status: 400});
+       }
+        
+       
+
+        const isNewEvent = await registerEventProcessing(eventId, body.type, body.action);
+        
+        if (!isNewEvent) {
             console.log("[Webhook] Erro - Evento já processado (duplicado):", eventId);
             return new Response(
                 JSON.stringify({
@@ -127,8 +175,6 @@ export async function POST (req: Request){
                 }
             );
         }
-        
-        await registerEventProcessing(eventId, body.type, body.action);
 
         await prisma.webhookEvent.create({
             data: {
@@ -155,8 +201,7 @@ export async function POST (req: Request){
         const mpPayment = await paymentClient.get({ id: mercadoPagoId});
 
         await prisma.$transaction(async (tx) => {
-
-        const updatedPayment = await tx.payment.update({
+          const updatedPayment = await tx.payment.update({
             where: { mercadoPagoId : mpPayment.id?.toString() },
             data: { 
             status: mapStatus(mpPayment.status ?? ""),
@@ -165,6 +210,7 @@ export async function POST (req: Request){
             amount: mpPayment.transaction_amount ?? 0,
             currency: mpPayment.currency_id,
             description: mpPayment.description ?? "",
+            paymentMethod: mpPayment.payment_method_id,
             paidAt: mpPayment.status === "approved" ? new Date() : undefined,
             updatedAt: new Date(),
         },
@@ -184,7 +230,7 @@ export async function POST (req: Request){
                    where: { id: updatedPayment.appointmentId },
                    data: {
                     status: "CANCELLED",
-                    updatedAt: new Date()
+                    updatedAt: new Date(),
                    }
                 });
             }
@@ -228,7 +274,7 @@ export async function POST (req: Request){
     }catch (error) {
         const processingTime = Date.now() - startTime;
         const mensagem = error instanceof Error ? error.message : "Erro desconhecido";
-        console.error("Erro no webhook MP:", {
+        console.error("Erro no processamento:", {
             error: mensagem,
             processingTime: `${processingTime}ms`,
         });
