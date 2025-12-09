@@ -3,10 +3,10 @@ import { sendAppointmentReminder } from "@/lib/whatsapp";
 
 export async function GET(request: Request) {
   try {
-    // ⚠️ COLOQUE SEU NÚMERO AQUI PARA TESTAR
-    const seuNumero = "5511999999999"; 
 
-    // Dispara o lembrete usando o template 'lembrete_consulta'
+    const seuNumero = "5582996518468"; 
+
+
     const result = await sendAppointmentReminder(
       seuNumero,
       "Fulano de Teste", // Nome do Paciente {{1}}
