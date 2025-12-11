@@ -141,11 +141,6 @@ export async function PUT(
     if (!current)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-    if (current.userId !== session.user.id && session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-
     const isOwner = current.userId === session.user.id;
     const isAdmin = session.user.role === "ADMIN";
     const isAssignedDoctor = current.doctorId === session.user.id;
@@ -226,6 +221,24 @@ export async function PUT(
           { status: 400 },
         );
       }
+
+      if (session.user.role === "USER" && status === AppointmentStatus.COMPLETED) {
+          return NextResponse.json(
+          { error: "Users cannot complete appointments." },
+          { status: 400 },
+        );
+      }
+
+      if (
+        status === AppointmentStatus.COMPLETED &&
+        current.status !== AppointmentStatus.CONFIRMED
+      ) {
+        return NextResponse.json(
+          { error: "Only confirmed appointments can be finalized" },
+          { status: 400 },
+        );
+      }
+
       newStatus = status as AppointmentStatus;
     }
 
@@ -282,11 +295,11 @@ export async function DELETE(
     const isOwner = appt.userId === session.user.id;
     const isAdmin = session.user.role === "ADMIN";
     const isAssignedDoctor = appt.doctorId === session.user.id;
-    
+
     // Verificação de Permissão
     if (!isOwner && !isAdmin && !isAssignedDoctor) {
-      return NextResponse.json({ 
-        error: "Permissão negada. Apenas o médico responsável ou administradores podem excluir este agendamento." 
+      return NextResponse.json({
+        error: "Permissão negada. Apenas o médico responsável ou administradores podem excluir este agendamento."
       }, { status: 403 });
     }
 

@@ -11,30 +11,46 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useCreateAppointmentMutation as CreateAppointmentForm } from "@/presentation/appointments/create/useCreateAppointmentMutation";
 import { EditAppointmentForm } from "@/presentation/appointments/update/EditAppointmentForm";
 import { useAppointments } from "@/presentation/appointments/queries/useAppointmentQueries";
-import { useDeleteAppointmentMutation } from "@/presentation/appointments/mutations/useAppointmentMutations";
+import { useDeleteAppointmentMutation, useCompleteAppointmentMutation } from "@/presentation/appointments/mutations/useAppointmentMutations";
 import { startOfDay, endOfDay, format } from "date-fns";
 import { Loader2, Clock, User, Trash2, Edit2, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { AppointmentStatus } from "@/modules/user/domain/user.interface";
 
-
-function AppointmentItem({ 
-  appointment, 
-  onEdit, 
-  onDelete, 
-  currentUser 
-}: { 
-  appointment: any, 
-  onEdit: (apt: any) => void, 
+function AppointmentItem({
+  appointment,
+  onEdit,
+  onDelete,
+  onComplete,
+  currentUser
+}: {
+  appointment: any,
+  onEdit: (apt: any) => void,
   onDelete: (id: string) => void,
-  currentUser: any 
+  onComplete: (apt: any) => void;
+  currentUser: any
 }) {
-  
+
   // Lógica de Permissão
   const isOwner = currentUser?.id === appointment.userId;
   const isAdmin = currentUser?.role === 'ADMIN';
   const isAssignedDoctor = appointment.doctorId === currentUser?.id;
   const canDelete = isOwner || isAdmin || isAssignedDoctor;
+  const authorizedComplete = isAdmin || isAssignedDoctor;
+
+  let canCompleted = false;
+  const now = new Date();
+  const appointmentDate = new Date(appointment.date);
+
+  if (
+    authorizedComplete &&
+    (appointment.status === AppointmentStatus.CONFIRMED ||
+    appointment.status === AppointmentStatus.COMPLETED) &&
+    now >= appointmentDate
+  ) {
+    canCompleted = true;
+  }
 
   const handleDeleteClick = () => {
     if (!canDelete) {
@@ -60,21 +76,41 @@ function AppointmentItem({
          <Badge variant={appointment.status === 'CONFIRMED' ? 'default' : 'secondary'}>
            {appointment.status}
          </Badge>
-         
+
          <Button variant="outline" size="icon" onClick={() => onEdit(appointment)}>
             <Edit2 className="h-4 w-4" />
          </Button>
-         
+
          {/* Botão de Exclusão com Feedback */}
-         <Button 
-            variant="destructive" 
-            size="icon" 
+         <Button
+            variant="destructive"
+            size="icon"
             onClick={handleDeleteClick}
             className={!canDelete ? "opacity-50 cursor-not-allowed hover:bg-destructive" : ""}
             title={!canDelete ? "Permissão negada" : "Excluir agendamento"}
          >
             {canDelete ? <Trash2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
          </Button>
+
+            {canCompleted && (
+              appointment.status === AppointmentStatus.COMPLETED ? (
+                <Button
+                  variant="ghost"
+                  disabled={true}
+                  onClick={() => onComplete(appointment)}
+                >
+                  Concluído
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  onClick={() => onComplete(appointment)}
+                >
+                  Finalizar atendimento
+                </Button>
+              )
+            )}
+
       </div>
     </div>
   );
@@ -83,12 +119,14 @@ function AppointmentItem({
 export default function AgendamentosPage() {
   const { data: session } = useSession();
   const [date, setDate] = useState<Date | undefined>(new Date());
-  
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [completeAppointment, setCompletingAppointment] = useState<any | null>(null);
 
   const deleteMutation = useDeleteAppointmentMutation();
+  const completeMutation = useCompleteAppointmentMutation();
 
   const filters = date ? {
     dateStart: startOfDay(date).toISOString(),
@@ -103,6 +141,14 @@ export default function AgendamentosPage() {
     if (deletingId) {
       deleteMutation.mutate(deletingId, {
         onSuccess: () => setDeletingId(null)
+      });
+    }
+  };
+
+  const handleComplete = () => {
+    if (completeAppointment) {
+      completeMutation.mutate(completeAppointment, {
+        onSuccess: () => setCompletingAppointment(null),
       });
     }
   };
@@ -135,7 +181,7 @@ export default function AgendamentosPage() {
             <CardTitle>
               {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : "Selecione uma data"}
             </CardTitle>
-            
+
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">Novo Agendamento</Button>
@@ -148,7 +194,7 @@ export default function AgendamentosPage() {
               </DialogContent>
             </Dialog>
           </CardHeader>
-          
+
           <CardContent>
             {isLoading ? (
               <div className="flex justify-center py-10">
@@ -157,12 +203,18 @@ export default function AgendamentosPage() {
             ) : appointments.length > 0 ? (
               <div className="space-y-2">
                 {appointments.map((apt: any) => (
-                  <AppointmentItem 
-                    key={apt.id} 
-                    appointment={apt} 
+                  <AppointmentItem
+                    key={apt.id}
+                    appointment={apt}
                     currentUser={session?.user}
                     onEdit={(apt) => setEditingAppointment(apt)}
                     onDelete={(id) => setDeletingId(id)}
+                    onComplete={(apt) =>
+                      setCompletingAppointment({
+                        id: apt.id,
+                        status: AppointmentStatus.COMPLETED,
+                      })
+                    }
                   />
                 ))}
               </div>
@@ -181,9 +233,9 @@ export default function AgendamentosPage() {
             <DialogTitle>Editar Agendamento</DialogTitle>
           </DialogHeader>
           {editingAppointment && (
-            <EditAppointmentForm 
-              appointment={editingAppointment} 
-              onSuccess={() => setEditingAppointment(null)} 
+            <EditAppointmentForm
+              appointment={editingAppointment}
+              onSuccess={() => setEditingAppointment(null)}
             />
           )}
         </DialogContent>
@@ -201,6 +253,32 @@ export default function AgendamentosPage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!completeAppointment}
+        onOpenChange={(open) => !open && setCompletingAppointment(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Você realmente deseja finalizar esse agendamento?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleComplete}
+              className="bg-primary text-destructive-foreground hover:bg-primary/90"
+            >
+              {completeMutation.isPending ? "Finalizando..." : "Finalizar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
