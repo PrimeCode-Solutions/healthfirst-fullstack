@@ -12,97 +12,37 @@ import { useCreateAppointmentMutation as CreateAppointmentForm } from "@/present
 import { EditAppointmentForm } from "@/presentation/appointments/update/EditAppointmentForm";
 import { useAppointments } from "@/presentation/appointments/queries/useAppointmentQueries";
 import { useDeleteAppointmentMutation } from "@/presentation/appointments/mutations/useAppointmentMutations";
+import AppointmentCard from "@/components/appointment-card";
 import { startOfDay, endOfDay, format } from "date-fns";
-import { Loader2, Clock, User, Trash2, Edit2, Ban } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-
-
-function AppointmentItem({ 
-  appointment, 
-  onEdit, 
-  onDelete, 
-  currentUser 
-}: { 
-  appointment: any, 
-  onEdit: (apt: any) => void, 
-  onDelete: (id: string) => void,
-  currentUser: any 
-}) {
-  
-  // Lógica de Permissão
-  const isOwner = currentUser?.id === appointment.userId;
-  const isAdmin = currentUser?.role === 'ADMIN';
-  const isAssignedDoctor = appointment.doctorId === currentUser?.id;
-  const canDelete = isOwner || isAdmin || isAssignedDoctor;
-
-  const handleDeleteClick = () => {
-    if (!canDelete) {
-      toast.error("Você não tem permissão para excluir este agendamento.");
-      return;
-    }
-    onDelete(appointment.id);
-  };
-
-  return (
-    <div className="flex items-center justify-between p-4 border rounded-lg mb-2 bg-card hover:bg-accent/5 transition-colors">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2 font-semibold">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <span>{appointment.startTime} - {appointment.endTime}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <User className="h-4 w-4" />
-          <span>{appointment.patientName}</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-         <Badge variant={appointment.status === 'CONFIRMED' ? 'default' : 'secondary'}>
-           {appointment.status}
-         </Badge>
-         
-         <Button variant="outline" size="icon" onClick={() => onEdit(appointment)}>
-            <Edit2 className="h-4 w-4" />
-         </Button>
-         
-         {/* Botão de Exclusão com Feedback */}
-         <Button 
-            variant="destructive" 
-            size="icon" 
-            onClick={handleDeleteClick}
-            className={!canDelete ? "opacity-50 cursor-not-allowed hover:bg-destructive" : ""}
-            title={!canDelete ? "Permissão negada" : "Excluir agendamento"}
-         >
-            {canDelete ? <Trash2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
-         </Button>
-      </div>
-    </div>
-  );
-}
+import { Loader2 } from "lucide-react";
 
 export default function AgendamentosPage() {
   const { data: session } = useSession();
   const [date, setDate] = useState<Date | undefined>(new Date());
-  
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState<any | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const deleteMutation = useDeleteAppointmentMutation();
 
-  const filters = date ? {
-    dateStart: startOfDay(date).toISOString(),
-    dateEnd: endOfDay(date).toISOString(),
-    pageSize: 100
-  } : undefined;
+  const filters = date
+    ? {
+        dateStart: startOfDay(date).toISOString(),
+        dateEnd: endOfDay(date).toISOString(),
+        pageSize: 100,
+      }
+    : undefined;
 
   const { data: appointmentsData, isLoading } = useAppointments(filters);
-  const appointments = Array.isArray(appointmentsData) ? appointmentsData : (appointmentsData as any)?.items || [];
+  const appointments = Array.isArray(appointmentsData)
+    ? appointmentsData
+    : (appointmentsData as any)?.items || [];
 
   const handleDelete = () => {
     if (deletingId) {
       deleteMutation.mutate(deletingId, {
-        onSuccess: () => setDeletingId(null)
+        onSuccess: () => setDeletingId(null),
       });
     }
   };
@@ -115,6 +55,7 @@ export default function AgendamentosPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-[300px_1fr]">
+        {/* Calendário */}
         <Card className="h-fit">
           <CardHeader>
             <CardTitle>Calendário</CardTitle>
@@ -130,12 +71,15 @@ export default function AgendamentosPage() {
           </CardContent>
         </Card>
 
+        {/* Lista de agendamentos */}
         <Card className="min-h-[500px]">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>
-              {date ? format(date, "dd 'de' MMMM", { locale: ptBR }) : "Selecione uma data"}
+              {date
+                ? format(date, "dd 'de' MMMM", { locale: ptBR })
+                : "Selecione uma data"}
             </CardTitle>
-            
+
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">Novo Agendamento</Button>
@@ -148,7 +92,7 @@ export default function AgendamentosPage() {
               </DialogContent>
             </Dialog>
           </CardHeader>
-          
+
           <CardContent>
             {isLoading ? (
               <div className="flex justify-center py-10">
@@ -157,9 +101,9 @@ export default function AgendamentosPage() {
             ) : appointments.length > 0 ? (
               <div className="space-y-2">
                 {appointments.map((apt: any) => (
-                  <AppointmentItem 
-                    key={apt.id} 
-                    appointment={apt} 
+                  <AppointmentCard
+                    key={apt.id}
+                    appointment={apt}
                     currentUser={session?.user}
                     onEdit={(apt) => setEditingAppointment(apt)}
                     onDelete={(id) => setDeletingId(id)}
@@ -175,37 +119,48 @@ export default function AgendamentosPage() {
         </Card>
       </div>
 
-      <Dialog open={!!editingAppointment} onOpenChange={(open) => !open && setEditingAppointment(null)}>
+      {/* Modal de edição */}
+      <Dialog
+        open={!!editingAppointment}
+        onOpenChange={(open) => !open && setEditingAppointment(null)}
+      >
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Agendamento</DialogTitle>
           </DialogHeader>
           {editingAppointment && (
-            <EditAppointmentForm 
-              appointment={editingAppointment} 
-              onSuccess={() => setEditingAppointment(null)} 
+            <EditAppointmentForm
+              appointment={editingAppointment}
+              onSuccess={() => setEditingAppointment(null)}
             />
           )}
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+      {/* Confirmação de exclusão */}
+      <AlertDialog
+        open={!!deletingId}
+        onOpenChange={(open) => !open && setDeletingId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
-              Essa ação não pode ser desfeita. O agendamento será excluído permanentemente.
+              Essa ação não pode ser desfeita. O agendamento será excluído
+              permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               {deleteMutation.isPending ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 }

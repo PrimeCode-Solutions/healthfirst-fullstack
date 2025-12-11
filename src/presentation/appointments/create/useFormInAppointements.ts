@@ -1,12 +1,14 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useSession } from "next-auth/react";
 import { useCreateAppointmentMutation } from "../mutations/useAppointmentMutations";
 
 export const ConsultationTypeSchema = z.enum(["GENERAL", "URGENT", "FOLLOWUP"]);
 
 const CreateAppointmentSchema = z.object({
   userId: z.string().optional(),
+  doctorId: z.string().optional(),
   date: z.date(),
   startTime: z.string().min(1, "Horário inicial obrigatório"),
   endTime: z.string().min(1, "Horário final obrigatório"),
@@ -22,10 +24,13 @@ const CreateAppointmentSchema = z.object({
 export type CreateAppointmentType = z.infer<typeof CreateAppointmentSchema>;
 
 export function CreateAppointmentForm() {
+  const { data: session } = useSession();
+  
   const form = useForm<CreateAppointmentType>({
     resolver: zodResolver(CreateAppointmentSchema),
     defaultValues: {
       userId: "",
+      doctorId: "", 
       date: new Date(),
       startTime: "",
       endTime: "",
@@ -42,10 +47,21 @@ export function CreateAppointmentForm() {
   const createAppointment = useCreateAppointmentMutation();
 
   const onSubmit = form.handleSubmit((data: CreateAppointmentType) => {
-    createAppointment.mutate(data, {
-      onSuccess: () => {
-        form.reset();
-      },
+    const finalData = {
+      ...data,
+      date: data.date.toISOString(),
+
+      // ⭐ CORREÇÃO ⭐
+      doctorId:
+        data.doctorId && data.doctorId.trim() !== ""
+          ? data.doctorId
+          : session?.user.role === "DOCTOR"
+          ? session.user.id
+          : null,
+    };
+
+    createAppointment.mutate(finalData, {
+      onSuccess: () => form.reset(),
     });
   });
 
