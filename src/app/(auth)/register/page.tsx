@@ -171,8 +171,8 @@ export default function RegisterPage() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      WhatsApp
+                    <FormLabel className="inline-flex items-center gap-0.5">
+                      WhatsApp<span className="text-red-500">*</span>
                     </FormLabel>
                     <FormControl>
                       <Input 
