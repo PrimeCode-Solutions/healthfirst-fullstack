@@ -145,14 +145,9 @@ export async function PUT(
     const isAdmin = session.user.role === "ADMIN";
     const isAssignedDoctor = current.doctorId === session.user.id;
 
-    if (!isAdmin && !isAssignedDoctor && !isOwner) {
-       // Se for um médico tentando mexer na consulta de outro médico:
-       if (session.user.role === 'DOCTOR') {
-          return NextResponse.json({ error: "Forbidden: Not assigned doctor" }, { status: 403 });
-       }
-       // Outros casos
-       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!isOwner && !isAdmin && !isAssignedDoctor) {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
 
     const body = await req.json().catch(() => ({}) as any);
 
@@ -222,12 +217,9 @@ export async function PUT(
         );
       }
 
-      if (session.user.role === "USER" && status === AppointmentStatus.COMPLETED) {
-          return NextResponse.json(
-          { error: "Users cannot complete appointments." },
-          { status: 400 },
-        );
-      }
+      if (status === AppointmentStatus.COMPLETED && !isAdmin && !isAssignedDoctor) {
+   return NextResponse.json({ error: "Apenas o médico responsável pode finalizar." }, { status: 403 });
+}
 
       if (
         status === AppointmentStatus.COMPLETED &&

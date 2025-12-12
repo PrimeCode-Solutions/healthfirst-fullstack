@@ -8,7 +8,7 @@ import { parseISO, isValid as isValidDate, startOfDay, endOfDay } from "date-fns
 import { z } from "zod";
 
 // --- Configuração do Mercado Pago ---
-const mpAccessToken = process.env.MP_ACCESS_TOKEN;
+const mpAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN;
 const client = new MercadoPagoConfig({ 
   accessToken: mpAccessToken || "" 
 });
@@ -28,7 +28,7 @@ const querySchema = z.object({
     }),
 });
 
-// --- GET: Listar Agendamentos (Restaurado Completo) ---
+// --- GET: Listar Agendamentos (Com Proteção de Dados Sensíveis) ---
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -88,10 +88,31 @@ export async function GET(req: NextRequest) {
         take: pageSize,
         include: {
           payment: true,
-          user: { select: { id: true, name: true, email: true } }
+          user: { select: { id: true, name: true, email: true, phone: true } }
         },
       }),
     ]);
+
+    // Sanitizar dados sensíveis baseado nas permissões
+    const sanitizedItems = items.map((appointment) => {
+      // Determinar se pode ver informações de contato
+      const canViewContactInfo =
+        session.user.role === "ADMIN" ||
+        (session.user.role === "DOCTOR" && appointment.doctorId === session.user.id);
+
+      return {
+        ...appointment,
+        user: {
+          id: appointment.user.id,
+          name: appointment.user.name,
+          email: canViewContactInfo ? appointment.user.email : null,
+          phone: canViewContactInfo ? appointment.user.phone : null,
+        },
+        // Também proteger o email e phone do paciente armazenado no appointment
+        patientEmail: canViewContactInfo ? appointment.patientEmail : null,
+        patientPhone: canViewContactInfo ? appointment.patientPhone : null,
+      };
+    });
 
     return NextResponse.json({
       meta: {
@@ -100,7 +121,7 @@ export async function GET(req: NextRequest) {
         pageSize,
         pageCount: Math.ceil(total / pageSize),
       },
-      items,
+      items: sanitizedItems,
     });
 
   } catch (err) {
@@ -124,7 +145,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { date, startTime, endTime, type, amount, description, patientName, doctorId } = body;
+    const { date, startTime, endTime, type, amount, description, patientName, patientEmail, patientPhone, doctorId } = body;
 
     if (!date || !amount) {
       return NextResponse.json({ error: "Dados obrigatórios faltando." }, { status: 400 });
@@ -143,7 +164,8 @@ export async function POST(req: NextRequest) {
           type: type as ConsultationType || "GENERAL",
           status: AppointmentStatus.PENDING,
           patientName: patientName || session.user.name,
-          patientEmail: session.user.email
+          patientEmail: patientEmail || session.user.email,
+          patientPhone: patientPhone || null,
         }
       });
 
