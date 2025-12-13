@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEbooksByCategory } from '@/presentation/ebooks/queries/useEbookQueries';
 import { usePremiumAccess } from '@/hooks/usePremiumAccess';
 import { useSession } from 'next-auth/react';
@@ -11,11 +12,9 @@ type EbookListProps = {
 export function EbookList({ categoryName }: EbookListProps) {
   const { data: ebooks, isLoading, isError } = useEbooksByCategory(categoryName);
 
-  
   const { data: session } = useSession();
   const userId = session?.user?.id as string | undefined;
 
-  // verifica acesso premium
   const { hasAccess, loading: loadingPremium } = usePremiumAccess(userId);
   const isPremium = hasAccess === true;
 
@@ -44,11 +43,14 @@ export function EbookList({ categoryName }: EbookListProps) {
           className="flex flex-col rounded-lg border bg-white p-4 shadow-sm"
         >
           {ebook.coverUrl && (
-            <img
-              src={ebook.coverUrl}
-              alt={ebook.title}
-              className="mb-3 h-48 w-full rounded-md object-cover"
-            />
+            <div className="relative mb-3 h-48 w-full">
+              <Image
+                src={ebook.coverUrl}
+                alt={ebook.title}
+                fill
+                className="rounded-md object-cover"
+              />
+            </div>
           )}
 
           <h3 className="mb-1 text-base font-semibold">{ebook.title}</h3>

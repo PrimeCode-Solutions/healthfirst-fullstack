@@ -5,7 +5,7 @@ import { formatISO } from "date-fns";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const searchParams = request.nextUrl.searchParams;
     const categoryName = searchParams.get("category");
 
     const ebooks = await prisma.ebook.findMany({
@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    
     type EbookWithCategory = (typeof ebooks)[number];
 
     const data: Ebook[] = ebooks.map((ebook: EbookWithCategory) => ({
@@ -32,8 +31,8 @@ export async function GET(request: NextRequest) {
       title: ebook.title,
       description: ebook.description ?? undefined,
       author: ebook.author,
-      coverImage: ebook.coverImage ?? undefined,
-      fileUrl: ebook.fileUrl,
+      coverUrl: ebook.coverImage ?? undefined, // mapeia para o nome usado no front
+      downloadUrl: ebook.fileUrl, // mapeia para o nome usado no front
       isPremium: ebook.isPremium,
       price: ebook.price ? Number(ebook.price) : undefined,
       categoryId: ebook.categoryId,
