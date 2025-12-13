@@ -46,8 +46,7 @@ export default async function FailurePage({
             </Button>
           </Link>
 
-          <Link href="">
-            {/* Só ficou faltando o link do suporte, que depois que tiver pronto coloca*/}
+          <Link href="/contato">
             <Button
               variant="outline"
               className="mt-4 w-full hover:cursor-pointer"

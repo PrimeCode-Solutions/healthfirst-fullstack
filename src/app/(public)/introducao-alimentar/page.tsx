@@ -1,6 +1,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button'; 
+import Link from 'next/link';
 
 export default function IntroducaoAlimentar () {
   return (
@@ -146,10 +147,12 @@ export default function IntroducaoAlimentar () {
           </div>
         </div>
         {/* Call to action button */}
-         <div className="text-center mt-8">
-          <Button variant="default" size="lg" className="bg-primary text-foreground shadow-xs hover:bg-primary/90 font-manrope text-lg transition-all duration-300 ease-in-out hover:scale-105">
-            Agende uma consulta
-          </Button>
+        <div className="text-center mt-8">
+          <Link href="/agendar-consulta">
+            <Button variant="default" size="lg" className="bg-primary text-foreground shadow-xs hover:bg-primary/90 font-manrope text-lg transition-all duration-300 ease-in-out hover:scale-105">
+              Agende uma consulta
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronsUpDown, Loader2, LogIn, UserPlus } from "lucide-react";
+import { Check, ChevronsUpDown, Clock, Loader2, LogIn, UserPlus, Calendar as CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -26,6 +26,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ptBR } from "react-day-picker/locale";
@@ -60,19 +61,19 @@ export default function AppointmentBooking() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
-  
-  // Estado para controlar o Dialog de Login
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
 
   // 1. Buscar Médicos da API
-  const { data: doctorsList } = useQuery({
+  const { data: doctorsList, error: doctorsError } = useQuery({
     queryKey: ["public-doctors"],
     queryFn: async () => {
-      // Agora a API permite role=DOCTOR sem autenticação
       const res = await api.get("/users?role=DOCTOR"); 
       return res.data.data.users;
     },
   });
+
+  if (doctorsError) 
+    throw doctorsError;
 
   // 2. Buscar Slots Disponíveis
   const { data: availableTimes, isLoading: isLoadingSlots } = useQuery({
@@ -86,13 +87,11 @@ export default function AppointmentBooking() {
   });
 
   const handleBooking = async () => {
-    // Validação de campos ANTES de checar o login
     if (!selectedDate || !selectedTime || !selectedConsultationType || !selectedDoctor) {
       toast.error("Por favor, preencha todos os campos.");
       return;
     }
 
-    // Se não estiver logado, abre o Pop-up
     if (status === "unauthenticated") {
       setIsLoginDialogOpen(true);
       return;
@@ -118,7 +117,7 @@ export default function AppointmentBooking() {
         amount: typeData?.price || 150,
         description: `Agendamento: ${typeData?.name} com ${doctorData?.name}`,
         patientName: session?.user?.name,
-        doctorId: selectedDoctor // Envia o ID do médico selecionado
+        doctorId: selectedDoctor
       });
       
       if (data.init_point) {
@@ -135,233 +134,269 @@ export default function AppointmentBooking() {
   };
 
   return (
-    <div className="bg-gray-50 p-4">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8">
-          <h1 className="mb-3 text-3xl font-bold text-gray-900">
-            Agende sua consulta
+    <div className="min-h-screen bg-gray-50/50 py-10">
+      <div className="mx-auto max-w-5xl px-4">
+        <div className="mb-10 text-center">
+          <h1 className="text-4xl font-bold tracking-tight text-primary">
+            Agende sua Consulta
           </h1>
-          <p className="leading-relaxed text-[#598C75]">
-            Escolha o médico especialista e o horário ideal para você.
+          <p className="mt-3 text-muted-foreground text-lg">
+            Cuidado e atenção especializada ao seu alcance.
           </p>
         </div>
 
-        <div className="">
-          <section className="flex flex-col-reverse pb-20 md:flex-col md:pb-0">
-            <div className="grid grid-cols-1 justify-between gap-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm md:grid-cols-[1fr_2fr]">
-              <div className="flex flex-col gap-4">
-                <div>
-                  <p className="font-medium text-gray-700">Detalhes da Consulta</p>
-                </div>
-                
-                {/* Seletor de Médico */}
-                <Popover open={doctorOpen} onOpenChange={setDoctorOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={doctorOpen}
-                      className="h-12 justify-between border-gray-200 bg-white"
-                    >
-                      {selectedDoctor
-                        ? doctorsList?.find((doctor: any) => doctor.id === selectedDoctor)?.name
-                        : "Selecione o Médico"}
-                      <ChevronsUpDown className="opacity-50 h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-0">
-                    <Command>
-                      <CommandInput placeholder="Buscar médico..." className="h-9" />
-                      <CommandList>
-                        <CommandEmpty>Nenhum médico encontrado.</CommandEmpty>
-                        <CommandGroup>
-                          {doctorsList?.map((doctor: any) => (
-                            <CommandItem
-                              className="cursor-pointer"
-                              key={doctor.id}
-                              value={doctor.id}
-                              onSelect={(currentValue) => {
-                                setSelectedDoctor(currentValue === selectedDoctor ? "" : doctor.id);
-                                setDoctorOpen(false);
-                                setSelectedTime("");
-                              }}
-                            >
-                              {doctor.name}
-                              <Check
-                                className={cn(
-                                  "ml-auto h-4 w-4",
-                                  selectedDoctor === doctor.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+        <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
+          {/* Coluna Esquerda: Formulário */}
+          <div className="space-y-6">
+            
+            {/* Passo 1: Profissional e Tipo */}
+            <Card className="border-0 shadow-md">
+                <CardContent className="p-6">
+                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <div className="h-8 w-1 bg-primary rounded-full"/>
+                        Dados da Consulta
+                    </h2>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                         {/* Seletor de Médico */}
+                         <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Especialista</label>
+                            <Popover open={doctorOpen} onOpenChange={setDoctorOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={doctorOpen}
+                                className="w-full justify-between h-11 border-gray-300 hover:border-primary/50 hover:bg-white transition-colors"
+                                >
+                                {selectedDoctor
+                                    ? doctorsList?.find((doctor: any) => doctor.id === selectedDoctor)?.name
+                                    : "Selecione o Médico"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command>
+                                <CommandInput placeholder="Buscar médico..." />
+                                <CommandList>
+                                    <CommandEmpty>Nenhum médico encontrado.</CommandEmpty>
+                                    <CommandGroup>
+                                    {doctorsList?.map((doctor: any) => (
+                                        <CommandItem
+                                        key={doctor.id}
+                                        value={doctor.id}
+                                        onSelect={() => {
+                                            setSelectedDoctor(selectedDoctor === doctor.id ? "" : doctor.id);
+                                            setDoctorOpen(false);
+                                            setSelectedTime("");
+                                        }}
+                                        className="cursor-pointer"
+                                        >
+                                        <Check
+                                            className={cn(
+                                            "mr-2 h-4 w-4 text-primary",
+                                            selectedDoctor === doctor.id ? "opacity-100" : "opacity-0"
+                                            )}
+                                        />
+                                        {doctor.name}
+                                        </CommandItem>
+                                    ))}
+                                    </CommandGroup>
+                                </CommandList>
+                                </Command>
+                            </PopoverContent>
+                            </Popover>
+                        </div>
 
-                {/* Seletor de Tipo de Consulta */}
-                <Popover open={consultationOpen} onOpenChange={setConsultationOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={consultationOpen}
-                      className="h-12 justify-between border-gray-200 bg-white"
-                    >
-                      {selectedConsultationType
-                        ? consultationTypes.find((type) => type.id === selectedConsultationType)?.name
-                        : "Selecione o tipo"}
-                      <ChevronsUpDown className="opacity-50 h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-0">
-                    <Command>
-                      <CommandList>
-                        <CommandGroup>
-                          {consultationTypes.map((type) => (
-                            <CommandItem
-                              className="cursor-pointer"
-                              key={type.id}
-                              value={type.id}
-                              onSelect={(currentValue) => {
-                                setSelectedConsultationType(currentValue === selectedConsultationType ? "" : type.id);
-                                setConsultationOpen(false);
-                              }}
-                            >
-                              <div className="flex flex-col">
-                                <span>{type.name}</span>
-                                <span className="text-xs text-muted-foreground">R$ {type.price.toFixed(2)}</span>
-                              </div>
-                              <Check
-                                className={cn(
-                                  "ml-auto h-4 w-4",
-                                  selectedConsultationType === type.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <Calendar
-                locale={ptBR}
-                mode="single"
-                defaultMonth={new Date()}
-                numberOfMonths={isMobile ? 1 : 2}
-                selected={selectedDate}
-                onSelect={(date) => {
-                    setSelectedDate(date);
-                    setSelectedTime("");
-                }}
-                disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
-                className="w-full rounded-lg p-0"
-                classNames={{
-                  day_button: "cursor-pointer hover:bg-accent rounded-md",
-                  day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                }}
-              />
-            </div>
-
-            {/* Horários disponíveis */}
-            {selectedDate && selectedDoctor && (
-              <div className="mb-5 w-full md:mt-5 animate-in fade-in slide-in-from-bottom-2">
-                <h2 className="mb-4 text-xl font-semibold text-gray-900">
-                  Horários disponíveis para {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
-                </h2>
-                
-                {isLoadingSlots ? (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Carregando horários...
+                        {/* Seletor de Tipo */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Tipo de Atendimento</label>
+                            <Popover open={consultationOpen} onOpenChange={setConsultationOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={consultationOpen}
+                                className="w-full justify-between h-11 border-gray-300 hover:border-primary/50 hover:bg-white transition-colors"
+                                >
+                                {selectedConsultationType
+                                    ? consultationTypes.find((type) => type.id === selectedConsultationType)?.name
+                                    : "Selecione o tipo"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command>
+                                <CommandList>
+                                    <CommandGroup>
+                                    {consultationTypes.map((type) => (
+                                        <CommandItem
+                                        key={type.id}
+                                        value={type.id}
+                                        onSelect={() => {
+                                            setSelectedConsultationType(selectedConsultationType === type.id ? "" : type.id);
+                                            setConsultationOpen(false);
+                                        }}
+                                        className="cursor-pointer"
+                                        >
+                                        <Check
+                                            className={cn(
+                                            "mr-2 h-4 w-4 text-primary",
+                                            selectedConsultationType === type.id ? "opacity-100" : "opacity-0"
+                                            )}
+                                        />
+                                        <div className="flex flex-col">
+                                            <span>{type.name}</span>
+                                            <span className="text-xs text-muted-foreground font-medium text-emerald-600">
+                                                R$ {type.price.toFixed(2)}
+                                            </span>
+                                        </div>
+                                        </CommandItem>
+                                    ))}
+                                    </CommandGroup>
+                                </CommandList>
+                                </Command>
+                            </PopoverContent>
+                            </Popover>
+                        </div>
                     </div>
-                ) : availableTimes && availableTimes.length > 0 ? (
-                <ToggleGroup
-                  type="single"
-                  value={selectedTime}
-                  onValueChange={setSelectedTime}
-                  className="grid w-full grid-cols-2 justify-start gap-3 sm:grid-cols-4 md:flex md:flex-wrap"
-                >
-                  {availableTimes.map((time: string) => (
-                    <ToggleGroupItem
-                      key={time}
-                      value={time}
-                      className="data-[state=on]:bg-primary data-[state=on]:hover:bg-primary flex min-h-[44px] cursor-pointer items-center justify-center rounded-md px-4 py-3 text-sm font-medium hover:bg-gray-100 border border-gray-200 data-[state=on]:text-white transition-all"
-                    >
-                      {time}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-                ) : (
-                    <p className="text-red-500">Nenhum horário disponível para este médico nesta data.</p>
-                )}
-              </div>
-            )}
-          </section>
+                </CardContent>
+            </Card>
 
-          <div className="fixed right-0 bottom-0 left-0 flex justify-end border-t border-gray-200 bg-white p-3 shadow-2xl drop-shadow-2xl md:sticky md:border-0 md:bg-transparent md:shadow-none md:drop-shadow-none md:mt-8">
-            <Button
-              className="w-full cursor-pointer md:w-auto min-w-[250px]"
-              size="lg"
-              disabled={
-                !selectedDoctor ||
-                !selectedConsultationType ||
-                !selectedTime ||
-                !selectedDate ||
-                isProcessing
-              }
-              onClick={handleBooking}
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processando...
-                </>
-              ) : (
-                "Prosseguir para o pagamento"
-              )}
-            </Button>
+            {/* Passo 2: Horários */}
+            {selectedDate && selectedDoctor && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                     <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-primary" />
+                        Horários para {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+                    </h2>
+                    
+                    {isLoadingSlots ? (
+                        <div className="flex flex-col items-center justify-center py-12 gap-3 text-muted-foreground bg-white rounded-lg border border-dashed">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p>Verificando agenda...</p>
+                        </div>
+                    ) : availableTimes && availableTimes.length > 0 ? (
+                        <ToggleGroup
+                            type="single"
+                            value={selectedTime}
+                            onValueChange={setSelectedTime}
+                            className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3"
+                        >
+                            {availableTimes.map((time: string) => (
+                                <ToggleGroupItem
+                                    key={time}
+                                    value={time}
+                                    className="h-12 w-full rounded-xl border border-gray-200 bg-white hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-white transition-all duration-200 font-medium shadow-sm"
+                                >
+                                    {time}
+                                </ToggleGroupItem>
+                            ))}
+                        </ToggleGroup>
+                    ) : (
+                        <div className="p-8 text-center bg-red-50 rounded-lg border border-red-100 text-red-600">
+                            Nenhum horário disponível para esta data.
+                        </div>
+                    )}
+                </div>
+            )}
+          </div>
+
+          {/* Coluna Direita: Calendário e Resumo */}
+          <div className="space-y-6">
+            <Card className="border-0 shadow-md overflow-hidden">
+                <div className="bg-primary/5 p-4 border-b border-primary/10">
+                    <h3 className="font-semibold text-primary flex items-center gap-2">
+                        <CalendarIcon className="h-4 w-4" />
+                        Selecione a Data
+                    </h3>
+                </div>
+                <CardContent className="p-0">
+                    <Calendar
+                        locale={ptBR}
+                        mode="single"
+                        defaultMonth={new Date()}
+                        numberOfMonths={1}
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                            setSelectedDate(date);
+                            setSelectedTime("");
+                        }}
+                        disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                        className="w-full flex justify-center p-4"
+                        classNames={{
+                            head_cell: "text-muted-foreground font-normal text-[0.8rem] uppercase",
+                            cell: "h-10 w-10 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+                            day: "h-10 w-10 p-0 font-normal aria-selected:opacity-100 hover:bg-emerald-50 hover:text-emerald-600 rounded-full transition-colors",
+                            day_selected: "!bg-primary !text-white hover:bg-primary hover:text-white focus:bg-primary focus:text-white shadow-md",
+                            day_today: "bg-accent text-accent-foreground",
+                            day_outside: "text-muted-foreground opacity-50",
+                            day_disabled: "text-muted-foreground opacity-50",
+                            day_hidden: "invisible",
+                        }}
+                    />
+                </CardContent>
+            </Card>
+
+            <div className="sticky top-8">
+                 <Button
+                    className="w-full h-14 text-lg font-semibold shadow-lg shadow-emerald-200 transition-all hover:scale-[1.02]"
+                    size="lg"
+                    disabled={!selectedDoctor || !selectedConsultationType || !selectedTime || !selectedDate || isProcessing}
+                    onClick={handleBooking}
+                >
+                    {isProcessing ? (
+                        <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...
+                        </>
+                    ) : (
+                        "Confirmar Agendamento"
+                    )}
+                </Button>
+                
+                <p className="mt-4 text-center text-xs text-muted-foreground">
+                    Pagamento seguro processado via Mercado Pago.
+                </p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Dialog de Login/Cadastro */}
       <Dialog open={isLoginDialogOpen} onOpenChange={setIsLoginDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Identificação Necessária</DialogTitle>
+        <DialogContent className="sm:max-w-[400px] border-0 shadow-2xl">
+          <DialogHeader className="text-center pb-2">
+            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                <LogIn className="h-6 w-6 text-primary" />
+            </div>
+            <DialogTitle className="text-xl">Identifique-se</DialogTitle>
             <DialogDescription>
-              Para finalizar seu agendamento e realizar o pagamento, você precisa estar logado.
+              Para finalizar seu agendamento, faça login ou crie sua conta gratuitamente.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="flex flex-col gap-3 py-4">
              <Link href="/login?callbackUrl=/agendar-consulta" className="w-full">
-                <Button className="w-full" variant="default">
-                   <LogIn className="mr-2 h-4 w-4" /> Fazer Login
+                <Button className="w-full h-11" variant="default">
+                   Fazer Login
                 </Button>
              </Link>
-             <div className="relative">
+             
+             <div className="relative py-2">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
                   <span className="bg-background px-2 text-muted-foreground">
-                    Ou
+                    ou
                   </span>
                 </div>
               </div>
+             
              <Link href="/register?callbackUrl=/agendar-consulta" className="w-full">
-                <Button className="w-full" variant="outline">
+                <Button className="w-full h-11 border-primary/20 hover:bg-primary/5 text-primary" variant="outline">
                    <UserPlus className="mr-2 h-4 w-4" /> Criar Conta
                 </Button>
              </Link>
           </div>
-          <DialogFooter>
-             <Button variant="ghost" onClick={() => setIsLoginDialogOpen(false)}>Cancelar</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

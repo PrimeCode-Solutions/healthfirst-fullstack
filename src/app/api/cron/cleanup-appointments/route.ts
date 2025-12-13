@@ -13,35 +13,40 @@ export async function GET() {
         status: AppointmentStatus.PENDING,
         createdAt: { lt: timeLimit },
       },
-      include: { payment: true }
+      include: { payment: true },
+      take: 50, 
     });
 
     if (appointmentsToDelete.length > 0) {
-      // 2. Salvar no Histórico em massa
-      await prisma.appointmentHistory.createMany({
-        data: appointmentsToDelete.map(app => ({
-          originalId: app.id,
-          userId: app.userId,
-          doctorId: app.doctorId,
-          date: app.date,
-          status: "CANCELLED",
-          reason: "TIMEOUT_PAYMENT",
-          amount: app.payment?.amount || 0
-        }))
-      });
+      await prisma.$transaction(async (tx) => {
+        
+        await tx.appointmentHistory.createMany({
+          data: appointmentsToDelete.map(app => ({
+            originalId: app.id,
+            userId: app.userId,
+            doctorId: app.doctorId,
+            date: app.date,
+            status: "CANCELLED",
+            reason: "TIMEOUT_PAYMENT",
+            amount: Number(app.payment?.amount || 0)
+          }))
+        });
 
-      const ids = appointmentsToDelete.map(a => a.id);
-      await prisma.appointment.deleteMany({
-        where: { id: { in: ids } }
+        const ids = appointmentsToDelete.map(a => a.id);
+        await tx.appointment.deleteMany({
+          where: { id: { in: ids } }
+        });
       });
     }
 
     return NextResponse.json({
-      message: "Limpeza concluída",
-      count: appointmentsToDelete.length,
+      message: "Limpeza executada",
+      processed: appointmentsToDelete.length,
     });
-  } catch (error) {
+
+  } catch (error: any) {
     console.error("Erro na limpeza:", error);
-    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
+    // Retorna os detalhes do erro para facilitar o debug se você chamar a rota manualmente
+    return NextResponse.json({ error: "Internal Error", details: error.message }, { status: 500 });
   }
 }
