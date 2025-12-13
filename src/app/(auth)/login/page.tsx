@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
@@ -28,12 +29,12 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-
 function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false); // Apenas estado do Google
 
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
@@ -47,7 +48,6 @@ function LoginFormContent() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
-
     try {
       const result = await signIn("credentials", {
         email: data.email,
@@ -65,6 +65,16 @@ function LoginFormContent() {
     } catch (error) {
       toast.error("Erro ao conectar com o servidor.");
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await signIn("google", { callbackUrl });
+    } catch (error) {
+      toast.error("Erro ao conectar com Google.");
+      setIsGoogleLoading(false);
     }
   };
 
@@ -134,7 +144,7 @@ function LoginFormContent() {
               )}
             />
 
-            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading || isGoogleLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -146,6 +156,28 @@ function LoginFormContent() {
             </Button>
           </form>
         </Form>
+
+        <div className="flex items-center gap-4">
+          <Separator className="flex-1" />
+          <span className="text-xs text-muted-foreground">OU</span>
+          <Separator className="flex-1" />
+        </div>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={handleGoogleLogin}
+          disabled={isGoogleLoading || isLoading}
+        >
+          {isGoogleLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+              <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+            </svg>
+          )}
+          Entrar com Google
+        </Button>
 
         <div className="text-center text-sm">
           <span className="text-gray-500">Não tem uma conta? </span>
@@ -182,7 +214,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Envolva o componente do formulário com Suspense */}
       <Suspense fallback={
         <div className="flex w-full items-center justify-center lg:w-1/2">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
