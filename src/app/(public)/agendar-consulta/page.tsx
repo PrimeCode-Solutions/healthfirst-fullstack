@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronsUpDown, Clock, Loader2, LogIn, UserPlus, Calendar as CalendarIcon } from "lucide-react";
+import { Check, ChevronsUpDown, Clock, Loader2, LogIn, UserPlus, Calendar as CalendarIcon, ArrowLeft } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -24,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -37,6 +36,7 @@ import api from "@/lib/api";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import TransparentPaymentForm from "@/presentation/payments/create/TransparentPaymentForm"; 
 
 const consultationTypes = [
   { id: "GENERAL", name: "Consulta Geral", price: 150.00 },
@@ -63,7 +63,8 @@ export default function AppointmentBooking() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoginDialogOpen, setIsLoginDialogOpen] = useState(false);
 
-  // 1. Buscar Médicos da API
+  const [pendingPayment, setPendingPayment] = useState<{ appointmentId: string, amount: number } | null>(null);
+
   const { data: doctorsList, error: doctorsError } = useQuery({
     queryKey: ["public-doctors"],
     queryFn: async () => {
@@ -120,18 +121,51 @@ export default function AppointmentBooking() {
         doctorId: selectedDoctor
       });
       
-      if (data.init_point) {
-        window.location.href = data.init_point;
+      if (data.id || data.appointmentId) {
+         setPendingPayment({
+             appointmentId: data.id || data.appointmentId, 
+             amount: typeData?.price || 150
+         });
+         toast.success("Agendamento criado! Realize o pagamento para confirmar.");
+      } else if (data.init_point) {
+         window.location.href = data.init_point;
       } else {
-        throw new Error("Link de pagamento não gerado.");
+         throw new Error("Erro ao criar agendamento.");
       }
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Erro ao iniciar pagamento. Tente novamente.");
-      setIsProcessing(false);
+      toast.error("Erro ao iniciar agendamento. Tente novamente.");
+    } finally {
+        setIsProcessing(false);
     }
   };
+
+  if (pendingPayment) {
+      return (
+          <div className="min-h-screen bg-gray-50/50 py-10 flex flex-col items-center justify-center px-4">
+              <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-6">
+                  <div className="mb-6 flex items-center justify-between">
+                      <Button variant="ghost" size="sm" onClick={() => setPendingPayment(null)}>
+                          <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
+                      </Button>
+                      <h2 className="text-xl font-bold text-primary">Pagamento</h2>
+                  </div>
+                  
+                  <div className="mb-6 bg-emerald-50 p-4 rounded-lg text-emerald-800 text-sm">
+                      <p className="font-semibold">Resumo do pedido:</p>
+                      <p>Valor a pagar: <span className="font-bold">R$ {pendingPayment.amount.toFixed(2)}</span></p>
+                  </div>
+
+                  <TransparentPaymentForm 
+                      amount={pendingPayment.amount}
+                      appointmentId={pendingPayment.appointmentId}
+                      userEmail={session?.user?.email || undefined}
+                  />
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50/50 py-10">
@@ -349,12 +383,12 @@ export default function AppointmentBooking() {
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processando...
                         </>
                     ) : (
-                        "Confirmar Agendamento"
+                        "Continuar para Pagamento"
                     )}
                 </Button>
                 
                 <p className="mt-4 text-center text-xs text-muted-foreground">
-                    Pagamento seguro processado via Mercado Pago.
+                    Ambiente seguro processado via Mercado Pago.
                 </p>
             </div>
           </div>

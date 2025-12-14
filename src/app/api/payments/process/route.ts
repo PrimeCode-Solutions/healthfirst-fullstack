@@ -1,0 +1,84 @@
+import { MercadoPagoConfig, Payment } from "mercadopago";
+import { prisma } from "@/app/providers/prisma";
+
+const mpAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN;
+
+if (!mpAccessToken) {
+  console.error("Token do Mercado Pago não configurado no .env");
+}
+
+const client = new MercadoPagoConfig({
+    accessToken: mpAccessToken || "",
+});
+
+const paymentClient = new Payment(client);
+
+export async function POST(req: Request) {
+    try {
+        const body = await req.json();
+        const { formData, appointmentId } = body;
+
+        const existingPayment = await prisma.payment.findFirst({
+             where: { appointmentId },
+             include: { 
+                appointment: {
+                    include: { user: true }
+                }
+             } 
+        });
+
+        if (!existingPayment) {
+             return new Response(JSON.stringify({ error: "Pagamento não encontrado" }), { status: 404 });
+        }
+
+        const payerEmail = formData.payer.email || 
+                           existingPayment.appointment?.patientEmail || 
+                           existingPayment.appointment?.user?.email || 
+                           "email_nao_informado@healthfirst.com";
+
+        const paymentData = {
+            transaction_amount: Number(existingPayment.amount),
+            token: formData.token,
+            description: existingPayment.description || "Consulta Médica",
+            installments: Number(formData.installments),
+            payment_method_id: formData.payment_method_id,
+            issuer_id: formData.issuer_id,
+            payer: {
+                email: payerEmail,
+                identification: {
+                    type: formData.payer.identification.type,
+                    number: formData.payer.identification.number,
+                },
+            },
+        };
+
+        const response = await paymentClient.create({ body: paymentData });
+        
+        const statusBanco = response.status === 'approved' ? "CONFIRMED" : "PENDING";
+        
+        await prisma.payment.update({
+            where: { id: existingPayment.id },
+            data: { 
+                mercadoPagoId: response.id?.toString(),
+                status: statusBanco as any,
+                paymentMethod: formData.payment_method_id
+            }
+        });
+
+        return new Response(JSON.stringify({
+            id: response.id,
+            status: response.status,
+            detail: response.status_detail,
+        }), { 
+            status: 200, 
+            headers: { "Content-Type": "application/json" } 
+        });
+
+    } catch (error: any) {
+        console.error("Erro ao processar pagamento:", error);
+        return new Response(JSON.stringify({ 
+            error: error.message || "Erro desconhecido ao processar pagamento",
+            status: error.status || 500 
+        }), { status: error.status || 500 });
+    }
+}

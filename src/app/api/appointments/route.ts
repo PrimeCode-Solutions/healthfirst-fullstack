@@ -159,23 +159,14 @@ export async function POST(req: NextRequest) {
     const isAdminOrDoctor = session.user.role === "ADMIN" || session.user.role === "DOCTOR";
 
     if (isAdminOrDoctor) {
-      if (userId) {
-        finalUserId = userId;
-      }
-
-      if (!finalPatientName) {
-        finalPatientName = session.user.name; 
-      }
-      
+      if (userId) finalUserId = userId;
+      if (!finalPatientName) finalPatientName = session.user.name; 
       finalPatientEmail = patientEmail || null; 
-      
     } else {
-
       finalUserId = session.user.id;
       finalPatientName = session.user.name; 
       finalPatientEmail = session.user.email;
     }
-
 
     if (!finalPatientName) finalPatientName = "Paciente";
 
@@ -195,7 +186,6 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      // Criação do registro de pagamento
       const newPayment = await tx.payment.create({
         data: {
           appointmentId: newAppointment.id,
@@ -211,6 +201,7 @@ export async function POST(req: NextRequest) {
       return { appointment: newAppointment, payment: newPayment };
     });
 
+    let initPoint = null;
 
     if (mpAccessToken) {
       try {
@@ -244,24 +235,22 @@ export async function POST(req: NextRequest) {
             pendingUrl: mpPreference.init_point,
           },
         });
+        
+        initPoint = mpPreference.init_point;
 
-        return NextResponse.json({ 
-          appointmentId: appointment.id,
-          init_point: mpPreference.init_point 
-        }, { status: 201 });
-
-      } catch (mpError) {
-        console.error("Erro no Mercado Pago:", mpError);
+      } catch (mpError: any) {
+        console.warn("Aviso: Falha ao gerar link de fallback do MP:", mpError.message);
       }
     }
 
     return NextResponse.json({ 
       appointmentId: appointment.id,
-      message: "Agendamento criado (sem link de pagamento gerado)" 
+      init_point: initPoint, 
+      message: "Agendamento criado com sucesso." 
     }, { status: 201 });
 
   } catch (e: any) {
-    console.error("❌ Erro POST /appointments:", e);
-    return NextResponse.json({ error: "Falha ao criar.", details: e.message }, { status: 500 });
+    console.error("Erro POST /appointments:", e);
+    return NextResponse.json({ error: "Falha ao criar agendamento.", details: e.message }, { status: 500 });
   }
 }
