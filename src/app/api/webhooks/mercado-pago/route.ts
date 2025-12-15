@@ -3,12 +3,14 @@ import { prisma } from "@/app/providers/prisma";
 import crypto from "crypto";
 import { PaymentStatus } from "@/generated/prisma";
 
-const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN as string });
+const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN;
+const client = new MercadoPagoConfig({ accessToken: accessToken || "" });
+
 const paymentClient = new Payment(client);
 const preApprovalClient = new PreApproval(client);
 
 function validateSignature(req: Request, body: string, signature: string | null, requestId: string | null): boolean {
-    const secret = process.env.MP_WEBHOOK_SECRET;
+    const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET || process.env.MP_WEBHOOK_SECRET;
     if (!secret || !signature || !requestId) return false;
 
     const parts = signature.split(',');
@@ -34,7 +36,6 @@ export async function POST(req: Request) {
         const signature = req.headers.get("x-signature");
         const requestId = req.headers.get("x-request-id");
 
-        // Em produção, valida assinatura
         if (process.env.NODE_ENV === 'production' && process.env.MP_WEBHOOK_SECRET) {
              if (!validateSignature(req, bodyText, signature, requestId)) {
                 return new Response("Invalid Signature", { status: 401 });
@@ -49,8 +50,8 @@ export async function POST(req: Request) {
 
         if (type === "payment") {
             const payment = await paymentClient.get({ id });
-            let status: PaymentStatus = "PENDING";
             
+            let status: PaymentStatus = "PENDING";
             if (payment.status === "approved") status = "CONFIRMED";
             else if (payment.status === "rejected") status = "REJECTED";
             else if (payment.status === "cancelled") status = "CANCELLED";
@@ -75,13 +76,47 @@ export async function POST(req: Request) {
                         data: { status: apptStatus as any }
                     });
                 }
+            } else {
+                if (status === "CONFIRMED") {
+                    
+                    const subscriptionId = payment.metadata?.subscription_id || payment.external_reference; 
+                    
+                    if (subscriptionId) {
+                         const subscription = await prisma.subscription.findFirst({
+                             where: { 
+                                 OR: [
+                                     { preapprovalId: subscriptionId },
+                                     { userId: payment.external_reference }
+                                 ]
+                             }
+                         });
+
+                         if (subscription) {
+                             await prisma.payment.create({
+                                 data: {
+                                     mercadoPagoId: String(id),
+                                     amount: payment.transaction_amount || 0,
+                                     currency: payment.currency_id || "BRL",
+                                     description: payment.description || "Pagamento de Assinatura",
+                                     status: status,
+                                     paymentMethod: payment.payment_method_id,
+                                     payerEmail: payment.payer?.email,
+                                     subscriptionId: subscription.id,
+                                     paidAt: new Date()
+                                 }
+                             });
+                         }
+                    }
+                }
             }
         }
 
         if (type === "subscription_preapproval") {
             const sub = await preApprovalClient.get({ id });
             let status = "INACTIVE";
+            
             if (sub.status === "authorized") status = "ACTIVE";
+            if (sub.status === "cancelled") status = "CANCELLED";
             
             await prisma.subscription.updateMany({
                 where: { preapprovalId: id },

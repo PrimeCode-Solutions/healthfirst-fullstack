@@ -1,11 +1,13 @@
 import axios from "axios";
 import { toast } from "sonner";
+const baseURL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api",
-  timeout: 10000,
+  baseURL: baseURL,
+  timeout: 20000, 
   headers: {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
   },
 });
 
@@ -23,8 +25,6 @@ api.interceptors.request.use(
     if (getTokenFunction) {
       try {
         const token = await getTokenFunction();
-        console.log(token);
-        
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -46,20 +46,17 @@ api.interceptors.response.use(
       const apiError = error.response.data;
       const status = error.response.status;
 
-      // Apenas alguns erros mostram toast automaticamente
       if (status >= 500) {
-        // Erros de servidor sempre mostram toast
         toast.error("Erro interno do servidor. Tente novamente.");
       } else if (status === 401) {
-        // Não autorizado
-        toast.error("Sessão expirada. Faça login novamente.");
-        // Redirecionar para login se necessário
       }
-      // 400, 422, etc. deixa para o componente decidir
 
-      return Promise.reject(new Error(apiError.message || apiError.error));
+      const message = apiError.message || apiError.error || "Erro desconhecido";
+      return Promise.reject(new Error(message));
+      
     } else if (error.request) {
-      toast.error("Erro de conexão. Verifique sua internet.");
+      console.error("Erro de conexão (Request):", error.request);
+      toast.error("Erro de conexão. Verifique se o servidor está rodando.");
       return Promise.reject(new Error("Erro de conexão"));
     }
 

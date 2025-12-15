@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/providers/prisma";
-import { AppointmentStatus } from "@/generated/prisma";
+import { AppointmentStatus, PaymentStatus } from "@/generated/prisma";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const timeLimit = new Date(Date.now() - 10 * 60 * 1000);
+    const timeLimit = new Date(Date.now() - 60 * 60 * 1000);
 
     const appointmentsToDelete = await prisma.appointment.findMany({
       where: {
         status: AppointmentStatus.PENDING,
         createdAt: { lt: timeLimit },
+        payment: {
+            status: PaymentStatus.PENDING
+        }
       },
       include: { payment: true },
       take: 50, 
@@ -27,8 +30,8 @@ export async function GET() {
             doctorId: app.doctorId,
             date: app.date,
             status: "CANCELLED",
-            reason: "TIMEOUT_PAYMENT",
-            amount: Number(app.payment?.amount || 0)
+            reason: "TIMEOUT_PAYMENT", 
+            amount: app.payment?.amount || 0
           }))
         });
 
@@ -40,13 +43,13 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      message: "Limpeza executada",
+      message: "Limpeza executada com segurança",
       processed: appointmentsToDelete.length,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error: any) {
     console.error("Erro na limpeza:", error);
-    // Retorna os detalhes do erro para facilitar o debug se você chamar a rota manualmente
     return NextResponse.json({ error: "Internal Error", details: error.message }, { status: 500 });
   }
 }
