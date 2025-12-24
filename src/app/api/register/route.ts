@@ -1,29 +1,36 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/app/providers/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const registerSchema = z.object({
-  name: z.string().min(3, "Nome deve ter no mínimo 3 caracteres"),
-  email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-  phone: z.string().optional(),
+  name: z.string().min(3),
+  email: z.string().email(),
+  phone: z.string().min(10),
+  password: z.string().min(6),
 });
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, email, password, phone } = registerSchema.parse(body);
+    const { name, email, phone, password } = registerSchema.parse(body);
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email },
+          { phone }
+        ]
+      },
     });
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: "Este email já está cadastrado." },
-        { status: 409 }
-      );
+      if (existingUser.email === email) {
+        return NextResponse.json({ message: "Este e-mail já está cadastrado." }, { status: 409 });
+      }
+      if (existingUser.phone === phone) {
+        return NextResponse.json({ message: "Este telefone já está cadastrado." }, { status: 409 });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -32,30 +39,22 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         email,
-        password: hashedPassword,
         phone,
-        role: "USER", // Default para pacientes
+        password: hashedPassword,
+        role: "USER",
       },
     });
 
-    // Remove a senha do retorno
     const { password: _, ...userWithoutPassword } = user;
 
-    return NextResponse.json(
-      { message: "Usuário criado com sucesso", user: userWithoutPassword },
-      { status: 201 }
-    );
+    return NextResponse.json(userWithoutPassword, { status: 201 });
+
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.issues[0].message },
-        { status: 400 }
-      );
+      return NextResponse.json({ message: "Dados inválidos.", errors: error.errors }, { status: 400 });
     }
-    
-    console.error("Erro no registro:", error);
     return NextResponse.json(
-      { error: "Erro interno ao criar usuário" },
+      { message: "Erro interno ao criar conta." },
       { status: 500 }
     );
   }

@@ -4,10 +4,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { prisma } from "@/app/providers/prisma";
 
-const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN as string });
+const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN;
+const client = new MercadoPagoConfig({ accessToken: accessToken || "" });
 const preApprovalClient = new PreApproval(client);
-
-const getBaseUrl = () => process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,57 +16,79 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { title, price, reason } = body;
+    const { token, payer, price, planName, userId } = body;
 
-    // Fallback de e-mail para Sandbox (para não dar erro de mesmo comprador/vendedor)
+    if (!token) {
+        return NextResponse.json({ error: "Token do cartão é obrigatório para checkout transparente" }, { status: 400 });
+    }
+
     const payerEmail = process.env.NODE_ENV === 'production' 
-        ? session.user.email ?? `no-email-${Date.now()}@example.com`
-        : `sub_test_${Date.now()}@test.com`;
+        ? (payer?.email || session.user.email)
+        : `test_user_${Date.now()}@test.com`;
 
-    // 1. Criar Assinatura no MP
     const subscription = await preApprovalClient.create({
       body: {
-        reason: reason || `Assinatura - ${title}`,
+        reason: planName || "Assinatura HealthFirst",
         auto_recurring: {
           frequency: 1,
           frequency_type: "months",
           transaction_amount: Number(price),
           currency_id: "BRL"
         },
-        back_url: `${getBaseUrl()}/dashboard/assinatura/processando`,
         payer_email: payerEmail,
-        external_reference: session.user.id,
-        status: "pending"
+        card_token_id: token, 
+        status: "authorized", 
+        back_url: process.env.NEXT_PUBLIC_APP_URL, 
+        external_reference: userId || session.user.id,
       }
     });
 
-    // 2. Salvar no Banco
     await prisma.subscription.upsert({
         where: { userId: session.user.id },
         update: {
             preapprovalId: subscription.id!,
-            planName: title,
+            planName: planName,
             amount: Number(price),
-            status: 'INACTIVE',
+            status: subscription.status === 'authorized' ? 'ACTIVE' : 'INACTIVE',
             mercadoPagoId: subscription.id
         },
         create: {
             userId: session.user.id,
             preapprovalId: subscription.id!,
-            planName: title,
+            planName: planName,
             amount: Number(price),
-            status: 'INACTIVE',
+            status: subscription.status === 'authorized' ? 'ACTIVE' : 'INACTIVE',
             mercadoPagoId: subscription.id
         }
     });
 
+    if (subscription.status === 'authorized') {
+        await prisma.payment.create({
+            data: {
+                mercadoPagoId: subscription.id, 
+                amount: Number(price),
+                currency: "BRL",
+                description: `Primeira mensalidade - ${planName}`,
+                status: "CONFIRMED",
+                paymentMethod: "credit_card",
+                payerEmail: payerEmail,
+                subscriptionId: (await prisma.subscription.findUnique({ where: { userId: session.user.id } }))?.id,
+                paidAt: new Date()
+            }
+        });
+    }
+
     return NextResponse.json({ 
-        init_point: subscription.init_point,
-        id: subscription.id 
+        id: subscription.id, 
+        status: subscription.status 
     });
 
   } catch (error: any) {
-    console.error("Erro ao criar assinatura:", error);
-    return NextResponse.json({ error: "Erro ao processar assinatura" }, { status: 500 });
+    console.error("Erro ao criar assinatura transparente:", error);
+    return NextResponse.json({ 
+        error: "Erro ao processar assinatura",
+        details: error.message || error.cause, 
+        status: error.status || 500
+    }, { status: error.status || 500 });
   }
 }

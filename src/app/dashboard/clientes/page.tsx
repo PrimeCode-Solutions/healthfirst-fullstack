@@ -39,7 +39,7 @@ export default function ClientesPage() {
   }
 
   if (error) {
-    return <div>Erro ao carregar clientes.</div>;
+    throw error; 
   }
 
   return (

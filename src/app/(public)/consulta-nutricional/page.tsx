@@ -6,8 +6,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
-import api from "@/lib/api";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TransparentSubscriptionForm } from "@/presentation/subscriptions/create/TransparentSubscriptionForm";
 
 const conteudoGratuito = [
   {
@@ -42,37 +42,21 @@ const conteudoPremium = [
 ];
 
 export default function ConsultaNutricionalPage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
-  const [loadingTitle, setLoadingTitle] = useState<string | null>(null);
+  
+  // Estado para controlar qual plano foi selecionado para compra
+  const [selectedPlan, setSelectedPlan] = useState<{title: string, price: number} | null>(null);
 
-  const handleSubscribe = async (title: string, price: number) => {
+  const handleSubscribeClick = (title: string, price: number) => {
     if (status === "unauthenticated") {
       toast.error("Faça login para continuar.");
       router.push("/login?callbackUrl=/consulta-nutricional");
       return;
     }
 
-    setLoadingTitle(title);
-
-    try {
-      const { data } = await api.post("/subscriptions/checkout", {
-        title: title,
-        price: price,
-        reason: `Assinatura: ${title}`
-      });
-
-      if (data.init_point) {
-        window.location.href = data.init_point;
-      } else {
-        toast.error("Erro ao gerar link.");
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao processar assinatura.");
-    } finally {
-      setLoadingTitle(null);
-    }
+    // Abre o modal com os dados do plano escolhido
+    setSelectedPlan({ title, price });
   };
 
   return (
@@ -142,17 +126,13 @@ export default function ConsultaNutricionalPage() {
                   <p className="text-[17px] leading-relaxed text-[#4F9678]">
                     {item.desc}
                   </p>
+                  
                   <Button
                     variant="outline"
-                    onClick={() => handleSubscribe(item.title, item.price)}
-                    disabled={loadingTitle === item.title}
-                    className="mt-2 h-9 border border-[#E8F2ED] px-4 text-[14px] font-semibold text-gray-800"
+                    onClick={() => handleSubscribeClick(item.title, item.price)}
+                    className="mt-2 h-9 border border-[#E8F2ED] px-4 text-[14px] font-semibold text-gray-800 hover:bg-[#E8F2ED]"
                   >
-                    {loadingTitle === item.title ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        "Inscreva-se agora"
-                    )}
+                    Inscreva-se por R$ {item.price.toFixed(2).replace('.', ',')}
                   </Button>
                 </div>
                 <div className="flex-shrink-0">
@@ -175,6 +155,27 @@ export default function ConsultaNutricionalPage() {
             Agende uma consulta
           </Button>
         </section>
+
+        {/* MODAL DE PAGAMENTO TRANSPARENTE */}
+        <Dialog open={!!selectedPlan} onOpenChange={(open) => !open && setSelectedPlan(null)}>
+            <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Finalizar Assinatura</DialogTitle>
+                </DialogHeader>
+                
+                {selectedPlan && session?.user && (
+                    <div className="pt-4">
+                        <TransparentSubscriptionForm 
+                            userId={session.user.id}
+                            userEmail={session.user.email || ""}
+                            planName={selectedPlan.title}
+                            amount={selectedPlan.price}
+                        />
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
+
       </main>
     </div>
   );
