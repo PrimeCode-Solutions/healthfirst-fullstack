@@ -38,7 +38,7 @@ export default function Error({
             Tentar Novamente
           </Button>
           <Button asChild variant="ghost" size="lg">
-            <Link href="/dashboard">
+            <Link href="/">
               Voltar ao Início
             </Link>
           </Button>

@@ -3,10 +3,6 @@ import { prisma } from "@/app/providers/prisma";
 
 const mpAccessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN;
 
-if (!mpAccessToken) {
-  console.error("Token do Mercado Pago não configurado no .env");
-}
-
 const client = new MercadoPagoConfig({
     accessToken: mpAccessToken || "",
 });
@@ -43,6 +39,7 @@ export async function POST(req: Request) {
             installments: Number(formData.installments),
             payment_method_id: formData.payment_method_id,
             issuer_id: formData.issuer_id,
+            external_reference: appointmentId.toString(),
             payer: {
                 email: payerEmail,
                 identification: {
@@ -77,7 +74,7 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("Erro ao processar pagamento:", error);
         return new Response(JSON.stringify({ 
-            error: error.message || "Erro desconhecido ao processar pagamento",
+            error: error.message || "Erro desconhecido",
             status: error.status || 500 
         }), { status: error.status || 500 });
     }

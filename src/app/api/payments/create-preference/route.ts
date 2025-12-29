@@ -25,7 +25,7 @@ export async function POST(req: Request) {
         });
 
         if (!existingPayment) {
-            return new Response(JSON.stringify({ error: "Pagamento não encontrado para esse agendamento!" }), {
+            return new Response(JSON.stringify({ error: "Pagamento não encontrado!" }), {
                 status: 404,
                 headers: { "Content-Type": "application/json" }
             });
@@ -48,6 +48,7 @@ export async function POST(req: Request) {
                     pending: `${process.env.NEXT_PUBLIC_APP_URL || process.env.BASE_URL || 'http://localhost:3000'}/pending`,
                 },
                 auto_return: "approved",
+                external_reference: appointmentId.toString(),
                 metadata: {
                     appointmentId,
                 },

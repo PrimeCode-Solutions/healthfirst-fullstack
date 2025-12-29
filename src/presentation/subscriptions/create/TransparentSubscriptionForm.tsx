@@ -8,116 +8,74 @@ import api from "@/lib/api";
 import { Loader2, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export function TransparentSubscriptionForm({ 
-  userId, 
-  userEmail, 
-  planName, 
-  amount 
-}: { 
-  userId: string; 
-  userEmail: string; 
-  planName: string; 
-  amount: number; 
-}) {
+export function TransparentSubscriptionForm({ userId, userEmail, planName, amount }: any) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const brickControllerRef = useRef<any>(null);
-  
   const containerId = useRef(`payment-brick-container-${Math.floor(Math.random() * 10000)}`);
 
   useEffect(() => {
     let isMounted = true;
 
     const initMP = async () => {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
+      await new Promise(r => setTimeout(r, 400));
       if (!isMounted) return;
 
-      const container = document.getElementById(containerId.current);
-      if (!container) {
-        console.error(`Container ${containerId.current} não encontrado.`);
-        return;
-      }
-
       await loadMercadoPago();
-      
       const mpPublicKey = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY;
-      if (!mpPublicKey) {
-        toast.error("Erro de configuração: Chave pública não encontrada.");
-        return;
-      }
+      if (!mpPublicKey) return;
 
-      const safeEmail = userEmail && userEmail.includes("@") 
-        ? userEmail 
-        : "cliente_sem_email@healthfirst.com";
+      const safeEmail = userEmail;
 
-      const mp = new (window as any).MercadoPago(mpPublicKey, {
-        locale: "pt-BR",
-      });
-
+      const mp = new (window as any).MercadoPago(mpPublicKey, { locale: "pt-BR" });
       const bricksBuilder = mp.bricks();
 
-      const renderCardPaymentBrick = async (bricksBuilder: any) => {
-        const settings = {
+      try {
+        if (brickControllerRef.current) await brickControllerRef.current.unmount();
+        
+        const controller = await bricksBuilder.create("cardPayment", containerId.current, {
           initialization: {
             amount: Number(amount),
-            payer: {
-              email: safeEmail, 
-            },
+            payer: { email: safeEmail },
           },
           customization: {
-            visual: {
-              style: {
-                theme: "default", 
-              },
-            },
-            paymentMethods: {
-              creditCard: "all",
-              maxInstallments: 1, 
-            },
+            paymentMethods: { creditCard: "all", maxInstallments: 1 },
           },
           callbacks: {
-            onReady: () => {
-              console.log("Formulário de cartão carregado com sucesso.");
-            },
+            onReady: () => console.log("Formulário carregado"),
             onSubmit: async (cardFormData: any) => {
               if (!isMounted) return;
               setLoading(true);
               try {
-                await processSubscription(cardFormData, safeEmail);
-              } catch (error) {
-                console.error(error);
+                const res = await api.post("/subscriptions/checkout", {
+                  token: cardFormData.token,
+                  payer: { email: cardFormData.payer.email || safeEmail },
+                  planName,
+                  price: amount,
+                  userId
+                });
+                
+
+                if (res.data.status === "authorized") {
+                  toast.success("Assinatura confirmada!");
+                  router.push(`/success?payment_id=${res.data.id}`);
+                } else {
+                  toast.error("Cartão recusado.");
+                  setLoading(false);
+                }
+
+              } catch (err: any) {
+                const msg = err.response?.data?.details || "Verifique os dados do cartão.";
+                toast.error(`Erro: ${msg}`);
                 setLoading(false);
               }
             },
-            onError: (error: any) => {
-              console.error("Erro interno do Brick:", error);
-            },
+            onError: (err: any) => console.error("Erro no Brick:", err),
           },
-        };
-
-        try {
-          if (brickControllerRef.current) {
-            try {
-               await brickControllerRef.current.unmount(); 
-            } catch (e) { /* ignore */ }
-          }
-          
-          const controller = await bricksBuilder.create(
-            "cardPayment",
-            containerId.current, 
-            settings
-          );
-          
-          if (isMounted) {
-             brickControllerRef.current = controller;
-          }
-        } catch (e) {
-          console.error("Falha fatal ao criar Brick:", e);
-        }
-      };
-
-      await renderCardPaymentBrick(bricksBuilder);
+        });
+        
+        if (isMounted) brickControllerRef.current = controller;
+      } catch (e) { console.error(e); }
     };
 
     initMP();
@@ -125,65 +83,30 @@ export function TransparentSubscriptionForm({
     return () => {
       isMounted = false;
       if (brickControllerRef.current) {
-        brickControllerRef.current.unmount().catch(() => {});
+        const controller = brickControllerRef.current;
         brickControllerRef.current = null;
+        try { controller.unmount(); } catch (e) {}
       }
     };
-  }, [amount, userEmail]);
-
-  const processSubscription = async (cardFormData: any, safeEmail: string) => {
-    try {
-      console.log("Enviando token:", cardFormData.token); 
-
-      const response = await api.post("/subscriptions/checkout", {
-        token: cardFormData.token,
-        issuer_id: cardFormData.issuer_id,
-        payment_method_id: cardFormData.payment_method_id,
-        payer: {
-          email: cardFormData.payer.email || safeEmail,
-          identification: cardFormData.payer.identification,
-        },
-        planName,
-        price: amount,
-        userId
-      });
-
-      if (response.status === 200 || response.data.status === "authorized") {
-         toast.success("Assinatura realizada com sucesso!");
-         router.push("/dashboard/assinatura/processando?status=approved");
-      } else {
-         toast.error("Pagamento não autorizado. Tente outro cartão.");
-      }
-
-    } catch (error: any) {
-      console.error("Erro ao processar assinatura:", error);
-      const msg = error.response?.data?.error || error.message || "Erro desconhecido";
-      toast.error(`Erro: ${msg}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [amount, userEmail, planName, userId, router]);
 
   return (
-    <Card className="w-full max-w-lg mx-auto border-0 shadow-none">
+    <Card className="w-full max-w-lg mx-auto border-0 shadow-none relative">
       <CardHeader className="px-0 pt-0">
         <CardTitle className="flex items-center gap-2 text-lg">
-           <Lock className="w-5 h-5 text-green-600" />
-           Pagamento Seguro
+           <Lock className="w-5 h-5 text-green-600" /> Pagamento Seguro
         </CardTitle>
       </CardHeader>
       <CardContent className="px-0">
         <div className="mb-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
             Plano: <strong>{planName}</strong> <br/>
-            Total: <strong>R$ {amount?.toFixed(2)}</strong>/mês
+            Valor: <strong>R$ {amount?.toFixed(2)}</strong>/mês
         </div>
-
         <div id={containerId.current}></div>
-
         {loading && (
-          <div className="flex items-center justify-center mt-4 text-blue-600 bg-white/80 absolute inset-0 z-50">
-            <Loader2 className="w-8 h-8 animate-spin mr-2" />
-            <span className="font-semibold">Processando assinatura...</span>
+          <div className="flex flex-col items-center justify-center absolute inset-0 z-50 bg-white/95">
+            <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-2" />
+            <span className="font-medium text-gray-700">Validando Assinatura...</span>
           </div>
         )}
       </CardContent>

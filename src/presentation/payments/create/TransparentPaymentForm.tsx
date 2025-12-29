@@ -25,7 +25,6 @@ export default function TransparentPaymentForm({ amount, appointmentId, userEmai
         },
     };
 
-    // CORREÇÃO: Adicionado 'as const' para garantir que "all" seja tratado como literal e não string genérica
     const customization = {
         paymentMethods: {
             ticket: "all",
@@ -51,7 +50,8 @@ export default function TransparentPaymentForm({ amount, appointmentId, userEmai
             .then((response) => response.json())
             .then((data) => {
                 if (data.status === "approved" || data.status === "in_process") {
-                    router.push("/success"); 
+                    const paymentId = data.id || data.mercadoPagoId;
+                    router.push(`/success?payment_id=${paymentId}`); 
                     resolve();
                 } else {
                     console.error("Erro no pagamento", data);

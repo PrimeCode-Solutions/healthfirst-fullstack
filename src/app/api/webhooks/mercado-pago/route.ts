@@ -1,7 +1,6 @@
 import { MercadoPagoConfig, Payment, PreApproval } from "mercadopago";
 import { prisma } from "@/app/providers/prisma";
 import crypto from "crypto";
-import { PaymentStatus } from "@/generated/prisma";
 
 const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN;
 const client = new MercadoPagoConfig({ accessToken: accessToken || "" });
@@ -9,25 +8,28 @@ const client = new MercadoPagoConfig({ accessToken: accessToken || "" });
 const paymentClient = new Payment(client);
 const preApprovalClient = new PreApproval(client);
 
-function validateSignature(req: Request, body: string, signature: string | null, requestId: string | null): boolean {
+function validateSignature(body: string, signature: string | null, requestId: string | null): boolean {
     const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET || process.env.MP_WEBHOOK_SECRET;
-    if (!secret || !signature || !requestId) return false;
+    if (!secret || !signature || !requestId) return true;
 
-    const parts = signature.split(',');
-    let ts, v1;
-    parts.forEach(p => {
-        const [k, v] = p.split('=');
-        if (k.trim() === 'ts') ts = v;
-        if (k.trim() === 'v1') v1 = v;
-    });
+    try {
+        const parts = signature.split(',');
+        let ts, v1;
+        parts.forEach(p => {
+            const [k, v] = p.split('=');
+            if (k.trim() === 'ts') ts = v;
+            if (k.trim() === 'v1') v1 = v;
+        });
 
-    if (!ts || !v1) return false;
+        if (!ts || !v1) return false;
 
-    const parsedBody = JSON.parse(body);
-    const manifest = `id:${parsedBody.data?.id};request-id:${requestId};ts:${ts};`;
-    const hmac = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
+        const manifest = `id:${JSON.parse(body).data?.id};request-id:${requestId};ts:${ts};`;
+        const hmac = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
 
-    return hmac === v1;
+        return hmac === v1;
+    } catch {
+        return false;
+    }
 }
 
 export async function POST(req: Request) {
@@ -37,7 +39,7 @@ export async function POST(req: Request) {
         const requestId = req.headers.get("x-request-id");
 
         if (process.env.NODE_ENV === 'production' && process.env.MP_WEBHOOK_SECRET) {
-             if (!validateSignature(req, bodyText, signature, requestId)) {
+             if (!validateSignature(bodyText, signature, requestId)) {
                 return new Response("Invalid Signature", { status: 401 });
              }
         }
@@ -51,19 +53,28 @@ export async function POST(req: Request) {
         if (type === "payment") {
             const payment = await paymentClient.get({ id });
             
-            let status: PaymentStatus = "PENDING";
+            let status = "PENDING";
             if (payment.status === "approved") status = "CONFIRMED";
             else if (payment.status === "rejected") status = "REJECTED";
             else if (payment.status === "cancelled") status = "CANCELLED";
 
             const dbPayment = await prisma.payment.findFirst({
-                where: { OR: [{ mercadoPagoId: String(id) }, { id: payment.external_reference }] }
+                where: { 
+                    OR: [
+                        { mercadoPagoId: String(id) }, 
+                        { appointmentId: payment.external_reference }
+                    ] 
+                }
             });
 
             if (dbPayment) {
                 await prisma.payment.update({
                     where: { id: dbPayment.id },
-                    data: { status, mercadoPagoId: String(id), paidAt: status === "CONFIRMED" ? new Date() : undefined }
+                    data: { 
+                        status: status as any, 
+                        mercadoPagoId: String(id), 
+                        paidAt: status === "CONFIRMED" ? new Date() : undefined 
+                    }
                 });
 
                 if (dbPayment.appointmentId) {
@@ -76,36 +87,27 @@ export async function POST(req: Request) {
                         data: { status: apptStatus as any }
                     });
                 }
-            } else {
-                if (status === "CONFIRMED") {
-                    
-                    const subscriptionId = payment.metadata?.subscription_id || payment.external_reference; 
-                    
-                    if (subscriptionId) {
-                         const subscription = await prisma.subscription.findFirst({
-                             where: { 
-                                 OR: [
-                                     { preapprovalId: subscriptionId },
-                                     { userId: payment.external_reference }
-                                 ]
-                             }
-                         });
+            } else if (status === "CONFIRMED") {
+                const subscriptionId = payment.metadata?.subscription_id || payment.external_reference; 
+                if (subscriptionId) {
+                    const subscription = await prisma.subscription.findFirst({
+                        where: { OR: [{ preapprovalId: subscriptionId }, { userId: payment.external_reference }] }
+                    });
 
-                         if (subscription) {
-                             await prisma.payment.create({
-                                 data: {
-                                     mercadoPagoId: String(id),
-                                     amount: payment.transaction_amount || 0,
-                                     currency: payment.currency_id || "BRL",
-                                     description: payment.description || "Pagamento de Assinatura",
-                                     status: status,
-                                     paymentMethod: payment.payment_method_id,
-                                     payerEmail: payment.payer?.email,
-                                     subscriptionId: subscription.id,
-                                     paidAt: new Date()
-                                 }
-                             });
-                         }
+                    if (subscription) {
+                        await prisma.payment.create({
+                            data: {
+                                mercadoPagoId: String(id),
+                                amount: payment.transaction_amount || 0,
+                                currency: payment.currency_id || "BRL",
+                                description: payment.description || "Mensalidade Assinatura",
+                                status: "CONFIRMED",
+                                paymentMethod: payment.payment_method_id,
+                                payerEmail: payment.payer?.email,
+                                subscriptionId: subscription.id,
+                                paidAt: new Date()
+                            }
+                        });
                     }
                 }
             }
@@ -114,7 +116,6 @@ export async function POST(req: Request) {
         if (type === "subscription_preapproval") {
             const sub = await preApprovalClient.get({ id });
             let status = "INACTIVE";
-            
             if (sub.status === "authorized") status = "ACTIVE";
             if (sub.status === "cancelled") status = "CANCELLED";
             

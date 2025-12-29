@@ -55,7 +55,7 @@ async function findByMercadoPagoId(
     mercadoPagoId: string
 ): Promise<Payment | null> {
     const response = await api.get<Payment>(
-        `/payments?=mercadoPagoId=${mercadoPagoId}`
+        `/payments?mercadoPagoId=${mercadoPagoId}`
     );
     return response.data;
 }
