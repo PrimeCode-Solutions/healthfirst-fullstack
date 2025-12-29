@@ -1,176 +1,149 @@
-import React from 'react';
-import { Card }  from '@/components/ui/card';
-import { Stethoscope, Baby, Heart } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { EbookList } from '@/components/ebook-list';
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Stethoscope, Baby, Heart } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { usePremiumAccess } from "@/hooks/usePremiumAccess";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TransparentSubscriptionForm } from "@/presentation/subscriptions/create/TransparentSubscriptionForm";
 
 export default function ConsutaPediatricaPage() {
-    return (
-        <div className="flex items-center justify-center min-h-screen">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-6 w-full">
-        
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const { hasAccess } = usePremiumAccess(session?.user?.id);
+  const [ebooks, setEbooks] = useState<any[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/ebooks?category=Pediatria")
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success) setEbooks(res.data);
+      });
+  }, []);
+
+  const handleAction = (ebook: any) => {
+    if (ebook.isPremium && !hasAccess) {
+      if (status === "unauthenticated") {
+        toast.error("Faça login para assinar.");
+        router.push("/login?callbackUrl=/consulta-pediatrica");
+        return;
+      }
+      setSelectedPlan({ title: "Assinatura Premium Pediatria", price: 29.90 });
+    } else {
+      window.open(ebook.downloadUrl, "_blank");
+    }
+  };
+
+  const gratuitos = ebooks.filter((e) => !e.isPremium);
+  const premium = ebooks.filter((e) => e.isPremium);
+
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-6 w-full">
         <section className="grid grid-cols-1 gap-6 mb-12 mt-8">
-        <div className="relative w-full mx-auto overflow-hidden rounded-xl">
-           <Image
-           width={1500}
-           height={1000}
-           alt="Mãe segurando seu filho"
-           src="/pediatria.png"
-           className="w-full h-[35rem] object-cover"
-           />
-           
-
-           <div className="absolute inset-0 bg-gradient-to-r from-black/10 to-black/70">
-           <div className="absolute inset-0 flex flex-col justify-center px-8">
-            <h1 className="mb-2 text-5xl font-bold tracking-tight text-white"> 
-                 Cuidados pediátricos especializados para a saúde do seu filho
-            </h1>
-                <p className="mb-3 font-normal text-white">
-                    Na HealthFirst, oferecemos atendimento para crianças de todas as idades, desde recém-nascidos até adolescentes.
-                    Nossa equipe experiente se dedica a garantir a saúde e o bem-estar do seu filho. 
+          <div className="relative w-full mx-auto overflow-hidden rounded-xl">
+            <Image width={1500} height={1000} alt="Capa" src="/pediatria.png" className="w-full h-[35rem] object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/10 to-black/70">
+              <div className="absolute inset-0 flex flex-col justify-center px-8">
+                <h1 className="mb-2 text-5xl font-bold tracking-tight text-white">
+                  Cuidados pediátricos especializados para a saúde do seu filho
+                </h1>
+                <p className="mb-3 font-normal text-white max-w-2xl">
+                  Na HealthFirst, oferecemos atendimento para crianças de todas as idades. Nossa equipe se dedica a garantir o bem-estar do seu filho.
                 </p>
-                 
-                <Link href="/agendar-consulta" className="inline-block text-center items-center px-4 py-3 w-48 text-sm font-bold text-black bg-[var(--primary)] rounded-lg">
-                    Agende uma consulta
+                <Link href="/agendar-consulta" className="inline-block text-center items-center px-4 py-3 w-48 text-sm font-bold text-black bg-[var(--primary)] rounded-lg hover:scale-105 transition-transform">
+                  Agende uma consulta
                 </Link>
-
-        </div>
-        </div>  
-        </div>
-        
-       
-        
-        <h2 className="mb-2 text-2xl font-bold tracking-tight text-gray-900">
-             Nossos serviços pediátricos
-            </h2>
-        
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2"> 
-        <Card className="flex flex-col p-6 gap-2">
-        
-        
-            <Stethoscope/>
-            <h2 className="text-xl font-bold tracking-tight text-gray-900">
-                Consulta pediátrica de rotina
-            </h2>
-
-            <p className="text-[var(--chart-2)]">
-             Check-ups regulares para monitorar o crescimento e o desenvolvimento.
-            </p>
-
-        </Card>
-        <Card className="flex flex-col p-6 gap-2">
-          
-          <Baby />
-          <h2 className="text-xl font-bold tracking-tight text-gray-900">
-            Cuidados com o recém-nascido
-          </h2>
-          
-          <p className="text-[var(--chart-2)]">
-            Cuidados especializados para recém-nascidos e bebês.
-          </p>
-
-        </Card>
-        <Card className="flex flex-col p-6 gap-2">
-          
-           <Heart />
-           <h2 className="text-xl font-bold tracking-tight text-gray-900">
-            Saúde do adolescente
-           </h2>
-
-           <p className="text-[var(--chart-2)]">
-            Apoio e orientação para adolescentes e jovens adultos.
-           </p>
-             
-        </Card>
-        </section>
-
-        <h2 className="text-2xl font-bold tracking-tight text-gray-900">
-            Recursos gratuitos para pais
-        </h2>
-
-        <div className="flex flex-col md:flex-row items-center gap-4 my-6">
-        <div className="flex-1">
-            <h3 className="block max-w-sm text-[var(--chart-2)]">Artigo</h3>
-                <h3 className="mb-2 text-xl font-bold tracking-tight text-gray-900">Compreendendo os marcos do desenvolvimento do seu filho</h3>
-                    <p className="mb-4 text-[var(--chart-2)]">Aprenda sobre as principais fases do desenvolvimento, desde a infância até a adolescência, e como apoiar o crescimento do seu filho.</p> 
-                <button className="px-4 py-2 bg-gray-100 rounded-md text-black hover:bg-gray-300">Leia mais</button>
-         </div>
-                <div className="w-[280px] h-40 flex-shrink-0">
-                     <Image
-                     width={250}
-                     height={100}
-                     alt="bebê brincando"
-                     src="/card_image1.png"
-                     className="w-full h-full object-cover rounded-lg"
-
-                     />                    
-                
-        </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row items-center gap-4 my-6">
-        <div className="flex-1">
-            <h3 className="block max-w-sm text-[var(--chart-2)]"> Guia </h3>
-                <h3 className="mb-2 text-xl font-bold tracking-tight text-gray-900"> Calendários de vacinação: mantendo seu filho protegido </h3>
-                  <p className="mb-4 text-[var(--chart-2)]">Mantenha-se atualizado com o calendário de vacinação recomendado para garantir a imunidade do seu filho contra doenças comuns.</p>
-                   <button className="px-4 py-2 bg-gray-100 rounded-md text-black hover:bg-gray-300">Ver programação</button>
-         </div>
-            <div className="w-[280px] h-40 flex-shrink-0">
-                <Image
-                width={100}
-                height={100}
-                alt="Fundo com degradê laranja até branco"
-                src="/card_image2.png"
-                className="w-full h-full object-cover rounded-lg"
-                />
+              </div>
             </div>
-        </div>
-        
-        <div className="flex flex-col md:flex-row items-center gap-4 my-6">
-        <div className="flex-1">
-            <h3 className="block max-w-sm text-[var(--chart-2)]"> Dicas </h3>
-                <h3 className="mb-2 text-xl font-bold tracking-tight text-gray-900">Dicas gerais de saúde para crianças</h3>
-            
-            <p className="mb-4 text-[var(--chart-2)]">Conselhos práticos sobre nutrição, sono e atividade física para promover a saúde e o bem-estar geral do seu filho.</p>
+          </div>
 
-             <button className="px-4 py-2 bg-gray-100 rounded-md text-black hover:bg-gray-300">Leia as dicas</button>
+          <h2 className="mb-2 text-2xl font-bold tracking-tight text-gray-900">Nossos serviços pediátricos</h2>
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+            <Card className="flex flex-col p-6 gap-2">
+              <Stethoscope /> <h2 className="text-xl font-bold">Rotina</h2>
+              <p className="text-[var(--chart-2)]">Check-ups regulares para monitorar o desenvolvimento.</p>
+            </Card>
+            <Card className="flex flex-col p-6 gap-2">
+              <Baby /> <h2 className="text-xl font-bold">Recém-nascido</h2>
+              <p className="text-[var(--chart-2)]">Cuidados especializados para bebês.</p>
+            </Card>
+            <Card className="flex flex-col p-6 gap-2">
+              <Heart /> <h2 className="text-xl font-bold">Saúde do adolescente</h2>
+              <p className="text-[var(--chart-2)]">Apoio e orientação para jovens.</p>
+            </Card>
+          </section>
+
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900 mt-8">Recursos gratuitos para pais</h2>
+          {gratuitos.map((eb) => (
+            <div key={eb.id} className="flex flex-col md:flex-row items-center gap-4 my-6">
+              <div className="flex-1">
+                <h3 className="block max-w-sm text-[var(--chart-2)]">E-book Gratuito</h3>
+                <h3 className="mb-2 text-xl font-bold tracking-tight text-gray-900">{eb.title}</h3>
+                <p className="mb-4 text-[var(--chart-2)]">{eb.description}</p>
+                <button className="px-4 py-2 bg-gray-100 rounded-md text-black font-bold hover:bg-gray-300 transition-colors" onClick={() => handleDownload(eb.downloadUrl)}>
+                  Baixar Agora
+                </button>
+              </div>
+              <div className="w-[280px] h-40 flex-shrink-0 relative">
+                <Image src={eb.coverUrl || "/card_image1.png"} fill alt={eb.title} className="object-cover rounded-lg" />
+              </div>
             </div>
+          ))}
 
-            <div className="w-[280px] h-40 flex-shrink-0">
-                <Image 
-                width={100}
-                height={100}
-                alt="Crianças em um parque"
-                src="/card_image3.png"
-                className="w-full h-full object-cover rounded-lg"
-                />
+          <section className="mt-12">
+            <h2 className="mb-6 text-2xl font-bold tracking-tight text-gray-900">Conteúdo Premium de Pediatria</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {premium.map((eb) => (
+                <article key={eb.id} className="flex flex-col rounded-lg border bg-white p-4 shadow-sm">
+                  <div className="relative mb-3 h-48 w-full">
+                    <Image src={eb.coverUrl || "/pediatria.png"} alt={eb.title} fill className="rounded-md object-cover" />
+                  </div>
+                  <h3 className="mb-1 text-base font-semibold">{eb.title}</h3>
+                  <p className="mb-3 text-sm text-muted-foreground line-clamp-3">{eb.description}</p>
+                  <button
+                    onClick={() => handleAction(eb)}
+                    className={`mt-auto rounded-md px-3 py-2 text-sm font-bold text-white transition-all ${
+                      hasAccess ? "bg-blue-600 hover:bg-blue-700" : "bg-emerald-600 hover:bg-emerald-700"
+                    }`}
+                  >
+                    {hasAccess ? "Baixar e-book" : "Assinar para Desbloquear"}
+                  </button>
+                </article>
+              ))}
             </div>
-        
-        </div>
+          </section>
 
-        <div>
-            <h2 className="mb-2 text-2xl font-bold tracking-tight text-gray-900"> Agende uma consulta </h2>
-
-            <p className="mb-3">
-                 Agende uma consulta com nossos especialistas em pediatria para discutir as questões de saúde do seu filho e receber 
-                 orientação personalizada. Nossa equipe está aqui para apoiá-lo em cada etapa do processo.
-            </p>
-
-            <Link href="/agendar-consulta" className="inline-block text-center items-center px-4 py-2 bg-[var(--primary)] rounded-md text-black font-bold"> 
-                Marcar consulta
+          <div className="mt-12 p-8 bg-gray-50 rounded-2xl border border-gray-100">
+            <h2 className="mb-2 text-2xl font-bold text-gray-900">Agende uma consulta</h2>
+            <p className="mb-6">Discuta as questões de saúde do seu filho e receba orientação personalizada.</p>
+            <Link href="/agendar-consulta" className="inline-block text-center px-6 py-3 bg-[var(--primary)] rounded-md text-black font-bold hover:scale-105 transition-transform">
+              Marcar consulta
             </Link>
-
-        </div>
-            {/* E-books de Pediatria */}
-        <div className="mt-8">
-          <h2 className="mb-4 text-2xl font-bold tracking-tight text-gray-900">
-            E-books sobre Pediatria
-          </h2>
-          <EbookList categoryName="Pediatria" />
-        </div>
+          </div>
         </section>
-        </div>
-        </div>
-    );
+
+        <Dialog open={!!selectedPlan} onOpenChange={() => setSelectedPlan(null)}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Finalizar Assinatura</DialogTitle></DialogHeader>
+            {selectedPlan && session?.user && (
+              <TransparentSubscriptionForm 
+                userId={session.user.id} 
+                userEmail={session.user.email!} 
+                planName={selectedPlan.title} 
+                amount={selectedPlan.price} 
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  );
 }

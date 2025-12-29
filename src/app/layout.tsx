@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Provider from "./providers/auth-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { BackToHome } from "@/components/back-to-home";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,6 +35,7 @@ export default function RootLayout({
           {children}
         </Provider>
         <Toaster />
+        <BackToHome />
       </body>
     </html>
   );

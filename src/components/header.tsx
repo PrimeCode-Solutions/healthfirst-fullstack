@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,8 @@ export function Header() {
         .toUpperCase()
         .substring(0, 2)
     : "US";
+
+  const pathname = usePathname();
 
   return (
     <header className="w-full bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -130,10 +133,12 @@ export function Header() {
               // Usuário Não Logado
               <>
                 <Button variant="ghost" asChild>
-                  <Link href="/login">Entrar</Link>
+                  <Link href={`/login?callbackUrl=${pathname}`}>
+                    Entrar
+                  </Link>
                 </Button>
                 <Button asChild>
-                  <Link href="/register">Inscreva-se</Link>
+                  <Link href={`/register?callbackUrl=${pathname}`}>Inscreva-se</Link>
                 </Button>
               </>
             )}

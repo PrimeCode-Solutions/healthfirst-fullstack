@@ -2,110 +2,141 @@
 
 import * as React from "react";
 import {
-  IconCalendarUser,
-  IconLogout,
-  IconNotebook,
-  IconSettings,
-  IconUsers,
-  IconClock,
-  IconCalendarTime,
-  IconHome, 
-} from "@tabler/icons-react";
-import { signOut, useSession } from "next-auth/react";
+  BookOpen,
+  LayoutDashboard,
+  Calendar,
+  Users,
+  Settings,
+  CreditCard,
+  ShieldCheck,
+  LogOut,
+} from "lucide-react";
+
+import { NavMain } from "@/components/nav-main";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
+  SidebarRail,
+  SidebarFooter,
   SidebarMenu,
   SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/components/ui/sidebar";
-import { NavMain } from "./nav-main";
-import Image from "next/image";
-import { Button } from "./ui/button";
-import Link from "next/link";
+import { useSession, signOut } from "next-auth/react";
+import { usePremiumAccess } from "@/hooks/usePremiumAccess";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession();
-  const role = session?.user?.role;
+  const userRole = session?.user?.role;
+  const userId = session?.user?.id;
+  const userName = session?.user?.name || "Usuário";
 
-  // Menu PACIENTE
-  const patientNav = [
-    { title: "Minhas Consultas", url: "/dashboard", icon: IconCalendarUser },
-    { title: "Meus E-books", url: "/dashboard/conteudo", icon: IconNotebook }, 
-    { title: "Configurações", url: "/dashboard/config", icon: IconSettings },
-  ];
+  const { hasAccess } = usePremiumAccess(userId);
 
-  // Menu MÉDICO
-  const doctorNav = [
-    { title: "Visão Geral", url: "/dashboard", icon: IconCalendarUser }, 
-    { title: "Agendamentos", url: "/dashboard/agendamentos", icon: IconCalendarTime }, 
-    { title: "Pacientes", url: "/dashboard/clientes", icon: IconUsers },
-    { title: "Horários", url: "/dashboard/config", icon: IconClock },
-  ];
+  const navigationData = React.useMemo(() => {
+    const menuItems = [
+      {
+        title: "Dashboard",
+        url: "/dashboard",
+        icon: LayoutDashboard,
+      },
+    ];
 
-  // Menu ADMIN
-  const adminNav = [
-    { title: "Visão Geral", url: "/dashboard", icon: IconCalendarUser },
-    { title: "Agendamentos", url: "/dashboard/agendamentos", icon: IconCalendarTime }, 
-    { title: "Gerenciar Usuários", url: "/dashboard/clientes", icon: IconUsers },
-    { title: "Gerenciar Médicos", url: "/dashboard/medicos", icon: IconUsers },
-    { title: "Gestão de Conteúdo", url: "/dashboard/conteudo", icon: IconNotebook }, 
-    { title: "Configurações", url: "/dashboard/config", icon: IconSettings },
-  ];
+    if (userRole === "ADMIN" || userRole === "DOCTOR") {
+      menuItems.push({
+        title: "Agendamentos",
+        url: "/dashboard/agendamentos",
+        icon: Calendar,
+      });
+    }
 
-  let navItems = patientNav;
-  if (role === "ADMIN") navItems = adminNav;
-  else if (role === "DOCTOR") navItems = doctorNav;
+    if (userRole === "ADMIN") {
+      menuItems.push(
+        {
+          title: "Conteúdo",
+          url: "/dashboard/conteudo",
+          icon: BookOpen,
+        },
+        {
+          title: "Médicos",
+          url: "/dashboard/medicos",
+          icon: ShieldCheck,
+        },
+        {
+          title: "Clientes",
+          url: "/dashboard/clientes",
+          icon: Users,
+        },
+        {
+          title: "Assinantes",
+          url: "/dashboard/admin/assinaturas",
+          icon: CreditCard,
+        }
+      );
+    }
 
-  const handleLogout = async () => {
-    await signOut({ callbackUrl: "/", redirect: true });
-  };
+    if (userRole === "USER") {
+      if (hasAccess) {
+        menuItems.push({
+          title: "Minha Assinatura",
+          url: "/dashboard/minha-assinatura",
+          icon: CreditCard,
+        });
+      }
+      
+      menuItems.push({
+        title: "Conteúdo Premium",
+        url: "/dashboard/conteudo",
+        icon: BookOpen,
+      });
+    }
+
+    menuItems.push({
+      title: "Configurações",
+      url: "/dashboard/config",
+      icon: Settings,
+    });
+
+    return menuItems;
+  }, [userRole, hasAccess]);
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <div className="flex justify-center py-2">
-               <Image
-                width={140}
-                height={70}
-                src="/images/home/logo-principal.svg" 
-                alt="HealthFirst Logo"
-                className="object-contain"
-                priority
-              />
-            </div>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="flex items-center gap-2 px-4 py-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <LayoutDashboard className="h-4 w-4" />
+          </div>
+          <div className="flex flex-col gap-0.5 leading-none">
+            <span className="font-semibold">HealthFirst</span>
+            <span className="text-xs text-muted-foreground">Painel {userRole}</span>
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navItems} />
+        <NavMain items={navigationData} />
       </SidebarContent>
       
-      <SidebarFooter className="flex flex-col gap-2"> 
-        
-        <Button 
-          variant="outline" 
-          asChild
-          className="w-full justify-start gap-2"
-        >
-          <Link href="/">
-            <IconHome className="size-4" /> 
-            Voltar para o Início
-          </Link>
-        </Button>
-
-        <Button 
-          variant="outline" 
-          onClick={handleLogout}
-          className="w-full flex items-center justify-start gap-2"
-        >
-          <IconLogout className="size-4" /> 
-          Sair
-        </Button>
+      <SidebarFooter className="border-t p-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton 
+              size="lg" 
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="hover:bg-destructive/10 hover:text-destructive transition-colors"
+            >
+              <LogOut className="h-5 w-5 text-destructive" />
+              <div className="flex flex-col gap-0.5 leading-none overflow-hidden">
+                <span className="font-semibold truncate">{userName}</span>
+                <span className="text-xs text-muted-foreground">Sair da conta</span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   );
 }

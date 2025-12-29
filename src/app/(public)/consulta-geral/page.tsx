@@ -1,8 +1,44 @@
-import React from "react";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
+"use client";
 
-export default function generalConsultation() {
+import React, { useEffect, useState } from "react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { usePremiumAccess } from "@/hooks/usePremiumAccess";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TransparentSubscriptionForm } from "@/presentation/subscriptions/create/TransparentSubscriptionForm";
+
+export default function GeneralConsultation() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const { hasAccess } = usePremiumAccess(session?.user?.id);
+  const [ebooks, setEbooks] = useState<any[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+
+  useEffect(() => {
+    fetch("/api/ebooks?category=Geral")
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success) setEbooks(res.data);
+      });
+  }, []);
+
+  const handleDownload = (ebook: any) => {
+    if (ebook.isPremium && !hasAccess) {
+      if (status === "unauthenticated") {
+        toast.error("Faça login para assinar e acessar o conteúdo.");
+        router.push("/login?callbackUrl=/consulta-geral");
+        return;
+      }
+      setSelectedPlan({ title: "Assinatura Premium HealthFirst", price: 29.90 });
+    } else {
+      window.open(ebook.downloadUrl, "_blank");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f7fcfa] p-4">
       <div className="mx-auto max-w-[930px]">
@@ -17,99 +53,96 @@ export default function generalConsultation() {
           check-up de rotina, tem dúvidas específicas sobre saúde ou precisa de
           apoio contínuo, estamos aqui para ajudá-lo em cada etapa do processo.
         </p>
+
         <h2 className="pt-9 pb-5 text-xl font-bold md:pt-8 md:pb-7 md:text-2xl md:font-semibold">
-          Recursos gratuitos
+          Biblioteca de E-books (Grátis e Premium)
         </h2>
-        <div className="flex flex-col justify-between md:flex-row">
-          <div className="w-full md:w-[301]">
-            <Image
-              className="w-full rounded-lg md:w-[301] md:p-1 lg:p-0"
-              src="/images/consulta-geral/example-1.png"
-              alt="example_1"
-              width={301}
-              height={301}
-            />
-            <h3 className="pt-3 pb-1 text-xl md:pb-0 md:text-lg">
-              Compreendendo problemas de saúde comuns
-            </h3>
-            <p className="text-md pb-12 text-[#4F9678] md:text-sm">
-              Saiba mais sobre as doenças mais comuns, seus sintomas e medidas
-              preventivas.
-            </p>
-          </div>
-          <div className="w-full md:w-[301]">
-            <Image
-              className="w-full rounded-lg md:w-[301] md:p-1 lg:p-0"
-              src="/images/consulta-geral/example-2.png"
-              alt="example_2"
-              width={301}
-              height={301}
-            />
-            <h3 className="pt-3 pb-1 text-xl md:pb-0 md:text-lg">
-              Dicas de bem-estar para a vida cotidiana
-            </h3>
-            <p className="text-md pb-12 text-[#4F9678] md:pb-8 md:text-sm">
-              Incorpore práticas de bem-estar simples, mas eficazes, à sua
-              rotina diária para melhorar a sua saúde.
-            </p>
-          </div>
-          <div className="w-full md:w-[301]">
-            <Image
-              className="w-full rounded-lg md:w-[301] md:p-1 lg:p-0"
-              src="/images/consulta-geral/example-3.png"
-              alt="example_3"
-              width={301}
-              height={301}
-            />
-            <h3 className="pt-3 pb-1 text-xl md:pb-0 md:text-lg">
-              Navegando pelas opções de saúde
-            </h3>
-            <p className="text-md pb-12 text-[#4F9678] md:text-sm">
-              Obtenha informações sobre diferentes serviços de saúde e saiba
-              como escolher o mais adequado às suas necessidades.
-            </p>
-          </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {ebooks.length > 0 ? (
+            ebooks.map((eb) => (
+              <div key={eb.id} className="w-full">
+                <div className="relative h-[200px] w-full overflow-hidden rounded-lg shadow-sm">
+                  <Image
+                    className="object-cover"
+                    src={eb.coverUrl || "/images/consulta-geral/example-1.png"}
+                    alt={eb.title}
+                    fill
+                  />
+                  {eb.isPremium && (
+                    <Badge className="absolute top-2 right-2 bg-emerald-600">Premium</Badge>
+                  )}
+                </div>
+                <h3 className="pt-3 pb-1 text-lg font-bold line-clamp-1">{eb.title}</h3>
+                <p className="text-sm text-[#4F9678] mb-3 line-clamp-2">{eb.description}</p>
+                <Button 
+                  className={`w-full font-bold transition-all ${
+                    eb.isPremium && !hasAccess 
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                    : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50"
+                  }`}
+                  onClick={() => handleDownload(eb)}
+                >
+                  {eb.isPremium && !hasAccess ? "Assinar para Baixar" : "Baixar Agora"}
+                </Button>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-400 italic col-span-3">Nenhum e-book disponível nesta categoria.</p>
+          )}
         </div>
+
         <h2 className="pt-6 pb-5 text-xl font-bold md:pt-0 md:pb-7 md:text-2xl md:font-semibold">
-          Conteúdo Premium
+          Recursos Educativos
         </h2>
-        <div className="flex flex-col rounded-sm p-3 shadow-[0_0_4px_0_rgba(0,0,0,0.102)] md:flex-row">
-          <div className="order-2 md:order-1">
-            <p className="pt-1 text-sm text-[#4F9678] md:pt-0">
-              Assinatura necessária
-            </p>
-            <h3 className="pt-1 pb-1 text-lg font-bold md:pt-0 md:pb-0">
-              Recursos detalhados sobre saúde
-            </h3>
-            <p className="mb-3 text-sm text-[#4F9678]">
-              Desbloqueie o acesso à nossa extensa biblioteca de recursos
-              detalhados sobre saúde, incluindo artigos detalhados, guias e
-              opiniões de especialistas sobre vários temas relacionados à saúde.
-              Inscreva-se agora para ter acesso a conteúdo exclusivo.
-            </p>
-            <Button
-              variant="outline"
-              className="h-8 w-37 bg-[#E8F2ED] p-2 text-sm"
-            >
-              Inscreva-se agora
-            </Button>
+        <div className="flex flex-col justify-between md:flex-row mb-12">
+          <div className="w-full md:w-[301px]">
+            <Image className="w-full rounded-lg" src="/images/consulta-geral/example-1.png" alt="ex1" width={301} height={301} />
+            <h3 className="pt-3 pb-1 text-xl md:text-lg">Compreendendo problemas comuns</h3>
+            <p className="text-md pb-12 text-[#4F9678] md:text-sm">Saiba mais sobre as doenças mais comuns e seus sintomas.</p>
           </div>
-          <Image
-            className="order-1 mt-1 h-41 w-full rounded-lg md:order-2 md:w-77"
-            src="/images/consulta-geral/example-4.png"
-            alt="example_4"
-            width={1120}
-            height={593}
-          />
+          <div className="w-full md:w-[301px]">
+            <Image className="w-full rounded-lg" src="/images/consulta-geral/example-2.png" alt="ex2" width={301} height={301} />
+            <h3 className="pt-3 pb-1 text-xl md:text-lg">Dicas de bem-estar</h3>
+            <p className="text-md pb-12 text-[#4F9678] md:text-sm">Incorpore práticas simples à sua rotina diária.</p>
+          </div>
+          <div className="w-full md:w-[301px]">
+            <Image className="w-full rounded-lg" src="/images/consulta-geral/example-3.png" alt="ex3" width={301} height={301} />
+            <h3 className="pt-3 pb-1 text-xl md:text-lg">Navegando pelas opções</h3>
+            <p className="text-md pb-12 text-[#4F9678] md:text-sm">Obtenha informações sobre diferentes serviços de saúde.</p>
+          </div>
         </div>
+
         <div className="mt-6 flex justify-center">
           <Button
             variant="outline"
-            className="h-10 w-45 bg-[var(--primary)] font-bold"
+            className="h-10 w-45 bg-[var(--primary)] font-bold text-black border-none"
+            onClick={() => router.push("/agendar-consulta")}
           >
             Agende uma consulta
           </Button>
         </div>
+
+        <Dialog open={!!selectedPlan} onOpenChange={() => setSelectedPlan(null)}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold">Acesso Premium HealthFirst</DialogTitle>
+            </DialogHeader>
+            {selectedPlan && session?.user && (
+              <div className="pt-4">
+                <p className="mb-6 text-gray-600 italic">
+                  Assine agora para desbloquear todo o conteúdo exclusivo da nossa plataforma.
+                </p>
+                <TransparentSubscriptionForm 
+                  userId={session.user.id} 
+                  userEmail={session.user.email!} 
+                  planName={selectedPlan.title} 
+                  amount={selectedPlan.price} 
+                />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

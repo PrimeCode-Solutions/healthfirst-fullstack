@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/providers/prisma";
 import { ApiResponse, Ebook } from "@/types/ebook";
 import { formatISO } from "date-fns";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,29 +12,19 @@ export async function GET(request: NextRequest) {
 
     const ebooks = await prisma.ebook.findMany({
       where: categoryName
-        ? {
-            category: {
-              name: categoryName,
-            },
-          }
+        ? { category: { name: categoryName } }
         : {},
-      include: {
-        category: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      include: { category: true },
+      orderBy: { createdAt: "desc" },
     });
 
-    type EbookWithCategory = (typeof ebooks)[number];
-
-    const data: Ebook[] = ebooks.map((ebook: EbookWithCategory) => ({
+    const data: Ebook[] = ebooks.map((ebook) => ({
       id: ebook.id,
       title: ebook.title,
       description: ebook.description ?? undefined,
       author: ebook.author,
-      coverUrl: ebook.coverImage ?? undefined, // mapeia para o nome usado no front
-      downloadUrl: ebook.fileUrl, // mapeia para o nome usado no front
+      coverUrl: ebook.coverImage ?? undefined,
+      downloadUrl: ebook.fileUrl,
       isPremium: ebook.isPremium,
       price: ebook.price ? Number(ebook.price) : undefined,
       categoryId: ebook.categoryId,
@@ -52,22 +44,67 @@ export async function GET(request: NextRequest) {
       },
     }));
 
-    const response: ApiResponse<Ebook[]> = {
-      success: true,
-      data,
-      error: null,
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json({ success: true, data, error: null });
   } catch (error) {
     console.error("Erro ao listar ebooks:", error);
+    return NextResponse.json({ success: false, data: null, error: "Erro interno" }, { status: 500 });
+  }
+}
 
-    const response: ApiResponse = {
-      success: false,
-      data: null,
-      error: "Erro interno do servidor",
-    };
+export async function POST(request: NextRequest) {
+  try {
+    const formData = await request.formData();
+    
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const categoryId = formData.get("categoryId") as string;
+    const isPremium = formData.get("isPremium") === "true";
+    const author = formData.get("author") as string;
+    const price = formData.get("price") ? parseFloat(formData.get("price") as string) : null;
+    
+    const coverFile = formData.get("coverFile") as File | null;
+    const ebookFile = formData.get("ebookFile") as File | null;
 
-    return NextResponse.json(response, { status: 500 });
+    if (!ebookFile) {
+      return NextResponse.json({ success: false, error: "Arquivo do ebook é obrigatório" }, { status: 400 });
+    }
+
+    const uploadDir = path.join(process.cwd(), "public/uploads/ebooks");
+    await mkdir(uploadDir, { recursive: true });
+
+    const ebookFileName = `${Date.now()}-${ebookFile.name.replace(/\s+/g, "_")}`;
+    const ebookBuffer = Buffer.from(await ebookFile.arrayBuffer());
+    await writeFile(path.join(uploadDir, ebookFileName), ebookBuffer);
+    const ebookUrl = `/uploads/ebooks/${ebookFileName}`;
+
+    let coverUrl = null;
+    if (coverFile) {
+      const coverFileName = `${Date.now()}-${coverFile.name.replace(/\s+/g, "_")}`;
+      const coverBuffer = Buffer.from(await coverFile.arrayBuffer());
+      await writeFile(path.join(uploadDir, coverFileName), coverBuffer);
+      coverUrl = `/uploads/ebooks/${coverFileName}`;
+    }
+
+    const newEbook = await prisma.ebook.create({
+      data: {
+        title,
+        description,
+        author,
+        categoryId,
+        isPremium,
+        price,
+        fileUrl: ebookUrl,
+        coverImage: coverUrl,
+        fileType: ebookFile.name.split('.').pop() || "pdf",
+        fileSize: ebookFile.size,
+      },
+      include: { category: true }
+    });
+
+    return NextResponse.json({ success: true, data: newEbook });
+
+  } catch (error) {
+    console.error("Erro ao criar ebook:", error);
+    return NextResponse.json({ success: false, error: "Erro ao processar upload e salvar no banco" }, { status: 500 });
   }
 }

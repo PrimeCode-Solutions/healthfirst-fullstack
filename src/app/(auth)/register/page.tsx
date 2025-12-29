@@ -43,7 +43,7 @@ function RegisterFormContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),

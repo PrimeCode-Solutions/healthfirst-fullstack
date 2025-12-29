@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import {useSession} from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 import { usePremiumAccess } from "@/hooks/usePremiumAccess";
-import { Skeleton} from "@/components/ui/skeleton";
-import {Alert, AlertTitle, AlertDescription} from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -63,120 +63,52 @@ interface Ebook {
   id: string;
   title: string;
   description: string;
-  category: string;
-  isPaid: boolean;
+  categoryId: string;
+  category: {
+    id: string;
+    name: string;
+  };
+  isPremium: boolean;
   price?: number;
-  coverImage: string;
+  coverImage?: string;
   fileUrl: string;
   downloads: number;
   status: "published" | "draft";
   createdAt: string;
 }
 
-const categories = [
-  "Saúde Mental",
-  "Nutrição",
-  "Exercícios",
-  "Medicina Preventiva",
-  "Bem-estar",
-  "Pediatria",
-  "Geriatria",
-  "Cardiologia",
-];
-
-// Schema de validação com Zod
-const baseEbookSchema = z.object({
-  title: z
-    .string()
-    .min(1, "Título é obrigatório")
-    .min(3, "Título deve ter pelo menos 3 caracteres"),
-  description: z
-    .string()
-    .min(1, "Descrição é obrigatória")
-    .min(10, "Descrição deve ter pelo menos 10 caracteres"),
-  category: z.string().min(1, "Categoria é obrigatória"),
+const ebookFormSchema = z.object({
+  title: z.string().min(1, "Título é obrigatório"),
+  description: z.string().min(1, "Descrição é obrigatória"),
+  categoryId: z.string().min(1, "Categoria é obrigatória"),
   status: z.enum(["published", "draft"]),
-  isPaid: z.boolean(),
-  price: z.number().min(0, "Preço deve ser maior que 0").optional(),
+  isPaid: z.boolean(), 
   coverFile: z.any().optional(),
   ebookFile: z.any().optional(),
 });
 
-const validatePrice = (data: { isPaid: boolean; price?: number }) => {
-  if (data.isPaid && (!data.price || data.price <= 0)) {
-    return false;
-  }
-  return true;
-};
-
-const ebookFormSchema = baseEbookSchema.refine(validatePrice, {
-  message: "Preço é obrigatório para conteúdo pago",
-  path: ["price"],
-});
-
-const createEbookFormSchema = baseEbookSchema
-  .extend({
-    ebookFile: z
-      .any()
-      .refine((file) => file instanceof File, "Arquivo do ebook é obrigatório"),
-  })
-  .refine(validatePrice, {
-    message: "Preço é obrigatório para conteúdo pago",
-    path: ["price"],
-});
-
 type EbookFormData = z.infer<typeof ebookFormSchema>;
 
-const mockEbooks: Ebook[] = [
-  {
-    id: "1",
-    title: "Guia Completo de Alimentação Saudável",
-    description: "Um guia abrangente sobre nutrição e alimentação balanceada",
-    category: "Nutrição",
-    isPaid: true,
-    price: 29.9,
-    coverImage: "/placeholder.svg?height=120&width=80",
-    fileUrl: "/ebooks/alimentacao-saudavel.pdf",
-    downloads: 156,
-    status: "published",
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    title: "Primeiros Socorros Básicos",
-    description: "Manual gratuito de primeiros socorros para emergências",
-    category: "Medicina Preventiva",
-    isPaid: false,
-    coverImage: "/placeholder.svg?height=120&width=80",
-    fileUrl: "/ebooks/primeiros-socorros.pdf",
-    downloads: 1243,
-    status: "published",
-    createdAt: "2024-01-10",
-  },
-];
-
 export default function ConteudoPage() {
-  const {data: session} = useSession();
-  const userId = (session as any)?.user?.id as string | undefined;
-  const isAdmin = (session as any)?.user?.role === "ADMIN";
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
+  const isAdmin = session?.user?.role === "ADMIN";
 
-  const { hasAccess, loading} = usePremiumAccess(userId);
-  const [ebooks, setEbooks] = useState<Ebook[]>(mockEbooks);
+  const { hasAccess, loading } = usePremiumAccess(userId);
+  const [ebooks, setEbooks] = useState<Ebook[]>([]);
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [isFetching, setIsFetching] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEbook, setEditingEbook] = useState<Ebook | null>(null);
 
-  
   const form = useForm<EbookFormData>({
-    resolver: zodResolver(
-      editingEbook ? ebookFormSchema : createEbookFormSchema,
-    ),
+    resolver: zodResolver(ebookFormSchema),
     defaultValues: {
       title: "",
       description: "",
-      category: "",
+      categoryId: "",
       status: "draft",
       isPaid: false,
-      price: undefined,
       coverFile: undefined,
       ebookFile: undefined,
     },
@@ -185,67 +117,116 @@ export default function ConteudoPage() {
   const { watch, setValue, reset } = form;
   const isPaid = watch("isPaid");
 
+  const loadData = async () => {
+    setIsFetching(true);
+    try {
+      const [ebRes, catRes] = await Promise.all([
+        fetch("/api/ebooks"),
+        fetch("/api/ebook-categories")
+      ]);
+      const ebJson = await ebRes.json();
+      const catJson = await catRes.json();
+
+      if (ebJson.success) setEbooks(ebJson.data);
+      if (catJson.success) setDbCategories(catJson.data);
+    } catch (error) {
+      toast.error("Erro ao carregar dados do servidor");
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const resetForm = () => {
-    reset();
+    reset({
+      title: "",
+      description: "",
+      categoryId: "",
+      status: "draft",
+      isPaid: false,
+      price: undefined,
+      coverFile: undefined,
+      ebookFile: undefined,
+    });
     setEditingEbook(null);
   };
 
-  const handleSubmit = (data: EbookFormData) => {
-    
+  const handleSubmit = async (data: EbookFormData) => {
     if (!editingEbook && !data.ebookFile) {
       toast.error("Arquivo do ebook é obrigatório para novos ebooks");
       return;
     }
 
-    const newEbook: Ebook = {
-      id: editingEbook?.id || Date.now().toString(),
-      title: data.title,
-      description: data.description,
-      category: data.category,
-      isPaid: data.isPaid,
-      price: data.isPaid ? data.price : undefined,
-      coverImage: "/placeholder.svg?height=120&width=80",
-      fileUrl: "ebookFile" in data && data.ebookFile instanceof File
-        ? `/ebooks/${data.ebookFile.name}`
-        : editingEbook?.fileUrl || "",
-      downloads: editingEbook?.downloads || 0,
-      status: data.status,
-      createdAt:
-        editingEbook?.createdAt || new Date().toISOString().split("T")[0],
-    };
+    try {
+      const formData = new FormData();
+      formData.append("title", data.title);
+      formData.append("description", data.description);
+      formData.append("categoryId", data.categoryId);
+      formData.append("status", data.status);
+      formData.append("isPremium", String(data.isPaid));
+      formData.append("author", "Equipe HealthFirst");
 
-    if (editingEbook) {
-      setEbooks(ebooks.map((e) => (e.id === editingEbook.id ? newEbook : e)));
-      toast.success("Ebook atualizado com sucesso!");
-    } else {
-      setEbooks([...ebooks, newEbook]);
-      toast.success("Ebook adicionado com sucesso!");
+
+      if (data.coverFile instanceof File) {
+        formData.append("coverFile", data.coverFile);
+      }
+
+      if (data.ebookFile instanceof File) {
+        formData.append("ebookFile", data.ebookFile);
+      }
+
+      const method = editingEbook ? "PUT" : "POST";
+      const url = editingEbook ? `/api/ebooks/${editingEbook.id}` : "/api/ebooks";
+
+      const response = await fetch(url, {
+        method,
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erro ao salvar e-book");
+      }
+
+      toast.success(editingEbook ? "Ebook atualizado!" : "Ebook adicionado!");
+      loadData();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao processar requisição");
     }
-
-    resetForm();
-    setIsDialogOpen(false);
   };
 
   const handleEdit = (ebook: Ebook) => {
     setEditingEbook(ebook);
-
-    
     setValue("title", ebook.title);
     setValue("description", ebook.description);
-    setValue("category", ebook.category);
-    setValue("isPaid", ebook.isPaid);
+    setValue("categoryId", ebook.categoryId);
+    setValue("isPaid", ebook.isPremium);
     setValue("price", ebook.price);
     setValue("status", ebook.status);
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setEbooks(ebooks.filter((e) => e.id !== id));
-    toast.success("Ebook removido com sucesso!");
+  const handleDelete = async (id: string) => {
+    if (!confirm("Deseja realmente excluir este e-book?")) return;
+
+    try {
+      const res = await fetch(`/api/ebooks/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Ebook removido com sucesso!");
+        loadData();
+      }
+    } catch (error) {
+      toast.error("Erro ao remover e-book");
+    }
   };
 
-  if (loading){
-    return(
+  if (loading || isFetching) {
+    return (
       <div className="p-4">
         <Skeleton className="mb-4 h-8 w-64" />
         <Skeleton className="h-64 w-full" />
@@ -253,8 +234,8 @@ export default function ConteudoPage() {
     );
   }
 
-  if(!hasAccess){
-    return(
+  if (!isAdmin && !hasAccess) {
+    return (
       <div className="p-4">
         <Alert variant="destructive">
           <AlertTitle>Acesso Negado</AlertTitle>
@@ -263,12 +244,11 @@ export default function ConteudoPage() {
           </AlertDescription>
         </Alert>
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex">
-    
       <div className="flex-1">
         <div className="">
           <div className="flex flex-col items-center justify-between gap-2 sm:flex-row">
@@ -284,7 +264,10 @@ export default function ConteudoPage() {
             </div>
 
             {isAdmin && (
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) resetForm();
+              }}>
                 <DialogTrigger asChild>
                   <Button
                     className="w-full bg-green-500 hover:bg-green-600 sm:w-auto"
@@ -349,13 +332,13 @@ export default function ConteudoPage() {
                         <div>
                           <FormField
                             control={form.control}
-                            name="category"
+                            name="categoryId"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Categoria *</FormLabel>
                                 <Select
                                   onValueChange={field.onChange}
-                                  value={field.value}
+                                  value={field.value || ""}
                                 >
                                   <FormControl>
                                     <SelectTrigger>
@@ -363,11 +346,19 @@ export default function ConteudoPage() {
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    {categories.map((cat) => (
-                                      <SelectItem key={cat} value={cat}>
-                                        {cat}
-                                      </SelectItem>
-                                    ))}
+                                    {dbCategories.length > 0 ? (
+                                      dbCategories
+                                        .filter((cat) => cat.id && cat.id.trim() !== "")
+                                        .map((cat) => (
+                                          <SelectItem key={cat.id} value={cat.id}>
+                                            {cat.name}
+                                          </SelectItem>
+                                        ))
+                                    ) : (
+                                      <div className="p-2 text-center text-sm text-gray-500">
+                                        Nenhuma categoria cadastrada
+                                      </div>
+                                    )}
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -433,30 +424,6 @@ export default function ConteudoPage() {
                             </FormItem>
                           )}
                         />
-
-                        {isPaid && (
-                          <FormField
-                            control={form.control}
-                            name="price"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Preço (R$) *</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    {...field}
-                                    onChange={(e) =>
-                                      field.onChange(Number(e.target.value))
-                                    }
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        )}
                       </div>
 
                       <Separator />
@@ -568,7 +535,7 @@ export default function ConteudoPage() {
                       Conteúdo Gratuito
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {ebooks.filter((e) => !e.isPaid).length}
+                      {ebooks.filter((e) => !e.isPremium).length}
                     </p>
                   </div>
                   <Gift className="h-8 w-8 text-green-500" />
@@ -584,7 +551,7 @@ export default function ConteudoPage() {
                       Conteúdo Pago
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {ebooks.filter((e) => e.isPaid).length}
+                      {ebooks.filter((e) => e.isPremium).length}
                     </p>
                   </div>
                   <DollarSign className="h-8 w-8 text-yellow-500" />
@@ -598,7 +565,6 @@ export default function ConteudoPage() {
               <CardTitle>Ebooks Cadastrados</CardTitle>
             </CardHeader>
             <CardContent className="border-0 p-0">
-              
               <div className="hidden md:block">
                 <Table>
                   <TableHeader>
@@ -627,7 +593,7 @@ export default function ConteudoPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>{ebook.category}</TableCell>
+                        <TableCell>{ebook.category.name}</TableCell>
                         <TableCell>
                           <Badge
                             variant={
@@ -661,8 +627,12 @@ export default function ConteudoPage() {
                                 </Button>
                               </>
                             ) : (
-                              <Button size="sm" variant="ghost">
-                                <FileText className="h-4 w-4" /> Ver
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => window.open(ebook.fileUrl, "_blank")}
+                              >
+                                <FileText className="mr-2 h-4 w-4" /> Ver
                               </Button>
                             )}
                           </div>
@@ -673,7 +643,6 @@ export default function ConteudoPage() {
                 </Table>
               </div>
 
-              
               <div className="space-y-4 md:hidden">
                 {ebooks.map((ebook) => (
                   <Card
@@ -728,7 +697,7 @@ export default function ConteudoPage() {
                             Categoria
                           </span>
                           <span className="text-sm font-medium text-gray-900">
-                            {ebook.category}
+                            {ebook.category.name}
                           </span>
                         </div>
 
