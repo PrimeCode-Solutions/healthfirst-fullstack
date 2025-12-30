@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/providers/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-import { subMonths, format } from "date-fns";
+import { subMonths, format, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AppointmentStatus } from "@/generated/prisma";
 
@@ -18,6 +18,8 @@ export interface AppointmentBase {
 export interface FormattedAppointments extends AppointmentBase {
   formattedDate: string;
   formattedTime: string;
+  rawDate: string;
+  rawStartTime: string;
 }
 
 export async function GET() {
@@ -60,19 +62,15 @@ async function getAdminStats() {
   const [totalUsers, totalAppointments, revenueData, appointmentsByStatus, monthlyRevenueRaw] =
     await Promise.all([
       prisma.user.count({ where: { role: "USER" } }),
-
       prisma.appointment.count(),
-
       prisma.payment.aggregate({
         _sum: { amount: true },
         where: { status: "APPROVED" },
       }),
-
       prisma.appointment.groupBy({
         by: ["status"],
         _count: { id: true },
       }),
-
       prisma.payment.findMany({
         where: {
           status: "APPROVED",
@@ -137,15 +135,12 @@ async function getDoctorStats(doctorId: string) {
         status: true,
       },
     }),
-
     prisma.appointment.count({
       where: { doctorId, status: "COMPLETED" },
     }),
-
     prisma.appointment.count({
       where: { doctorId, status: "CANCELLED" },
     }),
-
     prisma.appointment.findMany({
       where: {
         doctorId,
@@ -161,7 +156,6 @@ async function getDoctorStats(doctorId: string) {
         status: true,
       },
     }),
-
     prisma.appointment.findMany({
       where: {
         doctorId,
@@ -192,6 +186,8 @@ async function getDoctorStats(doctorId: string) {
     ...apt,
     formattedDate: format(apt.date, "dd/MM/yyyy", { locale: ptBR }),
     formattedTime: `${apt.startTime} - ${apt.endTime}`,
+    rawDate: apt.date.toISOString(),
+    rawStartTime: apt.startTime,
   });
 
   const todaysAppointments = todaysAppointmentsRaw.map(normalize);
@@ -211,11 +207,26 @@ async function getDoctorStats(doctorId: string) {
 
 async function getUserStats(userId: string) {
   const now = new Date();
+  const todayStart = startOfDay(now);
+  const currentTime = format(now, "HH:mm");
 
-  const [nextAppointmentRaw, historyRaw] = await Promise.all([
+  const [nextAppointmentRaw, historyRaw, completedCount, cancelledCount] = await Promise.all([
+    // Busca o agendamento CONFIRMADO mais próximo (hoje mais tarde ou dias futuros)
     prisma.appointment.findFirst({
-      where: { userId, date: { gte: now } },
-      orderBy: { date: "asc" },
+      where: {
+        userId,
+        status: AppointmentStatus.CONFIRMED,
+        OR: [
+          { date: { gt: todayStart } },
+          {
+            AND: [
+              { date: { equals: todayStart } },
+              { startTime: { gte: currentTime } }
+            ]
+          }
+        ]
+      },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
       select: {
         id: true,
         date: true,
@@ -225,11 +236,11 @@ async function getUserStats(userId: string) {
         status: true,
       },
     }),
-
+    // Histórico recente para a tabela
     prisma.appointment.findMany({
       where: { userId },
       orderBy: { date: "desc" },
-      take: 8,
+      take: 10,
       select: {
         id: true,
         date: true,
@@ -239,27 +250,28 @@ async function getUserStats(userId: string) {
         status: true,
       },
     }),
+    // Total global de realizadas
+    prisma.appointment.count({
+      where: { userId, status: AppointmentStatus.COMPLETED }
+    }),
+    // Total global de canceladas
+    prisma.appointment.count({
+      where: { userId, status: AppointmentStatus.CANCELLED }
+    })
   ]);
 
-  const formatAppointment = (
-    apt: AppointmentBase
-  ): FormattedAppointments => ({
+  const formatAppointment = (apt: AppointmentBase): FormattedAppointments => ({
     ...apt,
     formattedDate: format(apt.date, "dd/MM/yyyy", { locale: ptBR }),
     formattedTime: `${apt.startTime} - ${apt.endTime}`,
+    rawDate: apt.date.toISOString(),
+    rawStartTime: apt.startTime,
   });
 
-  const nextAppointment: FormattedAppointments | null =
-    nextAppointmentRaw ? formatAppointment(nextAppointmentRaw) : null;
-  const recentAppointments: FormattedAppointments[] =
-    historyRaw.map(formatAppointment);
-  const confirmedAppointmentsCount = historyRaw.filter(a => a.status === "CONFIRMED").length;
-  const cancelledAppointmentsCount = historyRaw.filter(a => a.status === "CANCELLED").length;
-
   return {
-    nextAppointment,
-    confirmedAppointmentsCount,
-    cancelledAppointmentsCount,
-    recentAppointments,
+    nextAppointment: nextAppointmentRaw ? formatAppointment(nextAppointmentRaw) : null,
+    completedAppointmentsCount: completedCount,
+    cancelledAppointmentsCount: cancelledCount,
+    recentAppointments: historyRaw.map(formatAppointment),
   };
 }

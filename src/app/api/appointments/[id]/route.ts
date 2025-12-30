@@ -146,66 +146,11 @@ export async function PUT(
     const isAssignedDoctor = current.doctorId === session.user.id;
 
     if (!isOwner && !isAdmin && !isAssignedDoctor) {
-  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-}
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = await req.json().catch(() => ({}) as any);
-
-    const {
-      date,
-      startTime,
-      endTime,
-      type,
-      status,
-      patientName,
-      patientEmail,
-      patientPhone,
-      notes,
-    } = body ?? {};
-
-    if (current.status === AppointmentStatus.CANCELLED) {
-      return NextResponse.json({ error: "already_cancelled" }, { status: 400 });
-    }
-
-    const newDateIso: string = date ? String(date) : current.date.toISOString();
-    const parsed = parseISO(newDateIso);
-    if (!isValidDate(parsed)) {
-      return NextResponse.json(
-        { error: "data inválida (ISO)" },
-        { status: 400 },
-      );
-    }
-
-    const newStart: string = startTime ?? current.startTime;
-    const newEnd: string = endTime ?? current.endTime;
-
-    if (date || startTime || endTime) {
-      const check = await validateSlotOr409({
-        dateIso: newDateIso,
-        startTime: newStart,
-        endTime: newEnd,
-        excludeAppointmentId: id,
-      });
-      if ("error" in check) {
-        const { code, msg, expectedMin } = check.error as any;
-        return NextResponse.json(
-          expectedMin ? { error: msg, expectedMin } : { error: msg },
-          { status: code },
-        );
-      }
-    }
-
-    let newType: ConsultationType | undefined;
-    if (typeof type === "string") {
-      const allowed = Object.values(ConsultationType);
-      if (!allowed.includes(type as ConsultationType)) {
-        return NextResponse.json(
-          { error: "invalid_type", allowed },
-          { status: 400 },
-        );
-      }
-      newType = type as ConsultationType;
-    }
+    const { status, ...rest } = body;
 
     let newStatus: AppointmentStatus | undefined;
     if (typeof status === "string") {
@@ -217,18 +162,22 @@ export async function PUT(
         );
       }
 
-      if (status === AppointmentStatus.COMPLETED && !isAdmin && !isAssignedDoctor) {
-   return NextResponse.json({ error: "Apenas o médico responsável pode finalizar." }, { status: 403 });
-}
-
-      if (
-        status === AppointmentStatus.COMPLETED &&
-        current.status !== AppointmentStatus.CONFIRMED
-      ) {
-        return NextResponse.json(
-          { error: "Only confirmed appointments can be finalized" },
-          { status: 400 },
+      if (status === AppointmentStatus.COMPLETED) {
+        const dateObj = new Date(current.date);
+        const [h, m] = current.startTime.split(':').map(Number);
+        const appointmentDateTime = new Date(
+          dateObj.getUTCFullYear(),
+          dateObj.getUTCMonth(),
+          dateObj.getUTCDate(),
+          h,
+          m
         );
+
+        const hasPassed = new Date() > appointmentDateTime;
+
+        if (!isAdmin && !isAssignedDoctor && !(isOwner && hasPassed)) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
       }
 
       newStatus = status as AppointmentStatus;
@@ -237,27 +186,14 @@ export async function PUT(
     const updated = await prisma.appointment.update({
       where: { id },
       data: {
-        date: parsed,
-        startTime: newStart,
-        endTime: newEnd,
-        type: newType ?? current.type,
+        ...rest,
         status: newStatus ?? current.status,
-        patientName: patientName ?? current.patientName,
-        patientEmail: patientEmail ?? current.patientEmail,
-        patientPhone: patientPhone ?? current.patientPhone,
-        notes: notes ?? current.notes,
       },
     });
 
     return NextResponse.json(updated);
   } catch (e) {
     console.error(e);
-    if (String((e as any)?.message || "").includes("BusinessHours")) {
-      return NextResponse.json(
-        { error: "business_hours_unavailable" },
-        { status: 503 },
-      );
-    }
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }

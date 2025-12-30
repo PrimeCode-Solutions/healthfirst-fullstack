@@ -7,11 +7,18 @@ export default withAuth(
     const path = req.nextUrl.pathname;
     const userRole = token?.role;
 
-
-    const adminRoutes = ["/dashboard/medicos", "/dashboard/config", "/dashboard/clientes"];
+    const adminRoutes = ["/dashboard/medicos", "/dashboard/clientes"];
+    const staffRoutes = ["/dashboard/agendamentos"]; 
+    const apiStaffRoutes = ["/api/appointments"]; 
     
     if (adminRoutes.some((route) => path.startsWith(route))) {
       if (userRole !== "ADMIN") {
+        return NextResponse.rewrite(new URL("/forbidden", req.url));
+      }
+    }
+
+    if (staffRoutes.some((route) => path.startsWith(route))) {
+      if (userRole !== "ADMIN" && userRole !== "DOCTOR") {
         return NextResponse.rewrite(new URL("/forbidden", req.url));
       }
     }
@@ -29,6 +36,5 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/dashboard/:path*", 
-    "/api/appointments/:path*"],
+  matcher: ["/dashboard/:path*", "/api/appointments/:path*"],
 };
