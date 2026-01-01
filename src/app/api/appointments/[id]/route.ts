@@ -13,6 +13,11 @@ import {
 } from "date-fns";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
+import { MercadoPagoConfig, PaymentRefund } from 'mercadopago';
+
+const mpClient = new MercadoPagoConfig({ 
+  accessToken: process.env.MP_ACCESS_TOKEN || '' 
+});
 
 function toMinutes(hhmm: string): number {
   const [hh, mm] = hhmm.split(":").map(Number);
@@ -224,20 +229,40 @@ export async function DELETE(
     const isAdmin = session.user.role === "ADMIN";
     const isAssignedDoctor = appt.doctorId === session.user.id;
 
-    // Verificação de Permissão
     if (!isOwner && !isAdmin && !isAssignedDoctor) {
       return NextResponse.json({
-        error: "Permissão negada. Apenas o médico responsável ou administradores podem excluir este agendamento."
+        error: "Permissão negada."
       }, { status: 403 });
     }
 
-    // Definir o motivo baseado em quem está excluindo
+    let refundStatus = "NOT_APPLICABLE";
+    
+    if (appt.payment && 
+        appt.payment.mercadoPagoId && 
+        (appt.payment.status === "APPROVED" || appt.payment.status === "CONFIRMED")) {
+      
+      try {
+        const refundClient = new PaymentRefund(mpClient);
+        
+        await refundClient.create({ 
+          payment_id: appt.payment.mercadoPagoId 
+        });
+        
+        refundStatus = "SUCCESS";
+        console.log(`Reembolso processado para o pagamento: ${appt.payment.mercadoPagoId}`);
+      } catch (mpError) {
+        console.error("Erro ao processar reembolso no Mercado Pago:", mpError);
+        refundStatus = "FAILED";
+        // Opcional: Você pode decidir bloquear o cancelamento se o reembolso falhar
+        return NextResponse.json({ error: "Falha ao processar estorno. Tente novamente." }, { status: 500 });
+      }
+    }
+
     let reason = "MANUAL_UNKNOWN";
     if (isAdmin) reason = "MANUAL_ADMIN";
     else if (isAssignedDoctor) reason = "MANUAL_DOCTOR";
     else if (isOwner) reason = "MANUAL_PATIENT";
 
-    // Salvar no Histórico
     await prisma.appointmentHistory.create({
       data: {
         originalId: appt.id,
@@ -245,7 +270,7 @@ export async function DELETE(
         doctorId: appt.doctorId,
         date: appt.date,
         status: "CANCELLED",
-        reason: reason,
+        reason: `${reason}_REFUND_${refundStatus}`,
         amount: appt.payment?.amount || 0
       }
     });
@@ -258,3 +283,5 @@ export async function DELETE(
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 }
+
+
