@@ -110,9 +110,17 @@ export const useDeleteAppointmentMutation = () => {
 
   return useMutation({
     mutationFn: (id: string) => appointmentService.deleteAppointment(id),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      toast.success("Agendamento excluído com sucesso!");
+      
+      if (data.refunded) {
+          toast.success("Agendamento cancelado e reembolso solicitado ao Mercado Pago!", {
+              duration: 5000,
+              icon: "💸"
+          });
+      } else {
+          toast.success("Agendamento cancelado com sucesso!");
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erro ao excluir agendamento!");

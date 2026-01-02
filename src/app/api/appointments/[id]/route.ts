@@ -16,7 +16,7 @@ import { authOptions } from "@/lib/auth-config";
 import { MercadoPagoConfig, PaymentRefund } from 'mercadopago';
 
 const mpClient = new MercadoPagoConfig({ 
-  accessToken: process.env.MP_ACCESS_TOKEN || '' 
+  accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN || '' 
 });
 
 function toMinutes(hhmm: string): number {
@@ -277,8 +277,12 @@ export async function DELETE(
 
     await prisma.appointment.delete({ where: { id } });
 
-    return new NextResponse(null, { status: 204 });
-  } catch (e) {
+    return NextResponse.json({ 
+      message: "Agendamento cancelado com sucesso.",
+      refunded: refundStatus === "SUCCESS"
+  }, { status: 200 });
+
+} catch (e) {
     console.error(e);
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }

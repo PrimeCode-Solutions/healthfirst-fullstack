@@ -213,7 +213,11 @@ export function PatientDashboard() {
               Cancelar Agendamento
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Você tem certeza que deseja cancelar esta consulta? Esta ação não pode ser desfeita e o horário ficará disponível para outros pacientes.
+              Você tem certeza que deseja cancelar esta consulta? 
+              <br/><br/>
+              Se o pagamento já foi realizado, o <strong>reembolso será processado automaticamente</strong> para a mesma forma de pagamento utilizada.
+              <br/><br/>
+              Esta ação não pode ser desfeita, e o horário ficará disponível para outros pacientes.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

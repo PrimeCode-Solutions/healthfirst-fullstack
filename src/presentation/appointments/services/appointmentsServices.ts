@@ -54,8 +54,12 @@ async function updateAppointment(
   return response.data;
 }
 
-async function deleteAppointment(id: string): Promise<void> {
-  await api.delete(`/appointments/${id}`);
+async function deleteAppointment(id: string): Promise<{ message: string; refunded: boolean }> {
+  const response = await api.delete(`/appointments/${id}`);
+  return response.data || { 
+    message: "Agendamento cancelado.", 
+    refunded: false 
+  };
 }
 
 export const appointmentService = {

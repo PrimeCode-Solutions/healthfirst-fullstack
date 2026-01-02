@@ -214,7 +214,9 @@ export default function AgendamentosPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar Agendamento?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação cancelará a consulta permanentemente. O horário ficará disponível novamente.
+              Esta ação cancelará a consulta permanentemente e o horário ficará disponível novamente.
+              <br/>
+              Caso haja pagamento confirmado, o estorno será tentado automaticamente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
