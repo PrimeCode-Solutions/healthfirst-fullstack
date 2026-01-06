@@ -50,13 +50,6 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
-// Enum para tipos de consulta
-enum ConsultationType {
-  GENERAL     // Consulta geral
-  URGENT      // Urgente
-  FOLLOWUP    // Remarcação/Acompanhamento
-}
-
 // Model do usuário 
 model User {
   id        String   @id @default(cuid())
@@ -99,6 +92,23 @@ model EbookCategory {
   ebooks      Ebook[]
   
   @@map("ebook_categories")
+}
+
+model ConsultationType {
+  id          String   @id @default(cuid())
+  name        String   // Ex: "Consulta Geral", "Cardiologia"
+  price       Decimal  @db.Decimal(10, 2)
+  description String?
+  duration    Int      @default(30)
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relação inversa
+  appointments Appointment[]
+
+  @@map("consultation_types")
 }
 
 // Model para ebooks
@@ -187,34 +197,36 @@ model BusinessHours {
   @@map("business_hours")
 }
 
-// Model para agendamentos
 model Appointment {
   id          String            @id @default(cuid())
   userId      String
   doctorId    String?
   
-  // Dados do agendamento
   date        DateTime
-  startTime   String           // "14:30"
-  endTime     String           // "15:00"
-  type        ConsultationType @default(GENERAL)
+  startTime   String
+  endTime     String
+  videoUrl    String?
+  
+  consultationTypeId String
+  consultationType   ConsultationType @relation(fields: [consultationTypeId], references: [id])
+
   status      AppointmentStatus @default(PENDING)
   
-  // Dados do cliente/paciente
+  // Valor cobrado no momento do agendamento (Snapshot do preço)
+  amount      Decimal           @db.Decimal(10, 2)
+  
   patientName  String
   patientEmail String?
   patientPhone String?
-  notes        String?          // Observações
+  notes        String?
   
-  // Timestamps
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
   
-  // Relações
   user        User      @relation("PatientAppointments", fields: [userId], references: [id], onDelete: Cascade)
   doctor      User?     @relation("DoctorAppointments", fields: [doctorId], references: [id])
   payment     Payment?
-  
+
   @@map("appointments")
 }
 

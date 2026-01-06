@@ -3,7 +3,7 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import { prisma } from "@/app/providers/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
-import { AppointmentStatus, ConsultationType, PaymentStatus } from "@/generated/prisma";
+import { AppointmentStatus, PaymentStatus } from "@/generated/prisma"; 
 import { parseISO, isValid as isValidDate, startOfDay, endOfDay } from "date-fns";
 import { z } from "zod";
 
@@ -30,6 +30,7 @@ const querySchema = z.object({
     }),
 });
 
+// GET: Listar Agendamentos
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -89,12 +90,14 @@ export async function GET(req: NextRequest) {
         take: pageSize,
         include: {
           payment: true,
+          consultationType: true, // Incluir os detalhes do tipo de consulta
           user: { select: { id: true, name: true, email: true, phone: true } },
           doctor: { select: { id: true, name: true, email: true } }
         },
       }),
     ]);
 
+    // Sanitização
     const sanitizedItems = items.map((appointment) => {
       const canViewContactInfo =
         session.user.role === "ADMIN" ||
@@ -129,6 +132,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// POST: Criar Agendamento (ATUALIZADO PARA MODELO DINÂMICO)
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -138,8 +142,9 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
   
+    // Recebemos 'consultationTypeId' (ID do banco) em vez de 'type' (Enum fixo)
     const { 
-      date, startTime, endTime, type, amount, description, 
+      date, startTime, endTime, consultationTypeId, description, 
       patientEmail, patientPhone, doctorId, 
       userId, name 
     } = body;
@@ -147,12 +152,24 @@ export async function POST(req: NextRequest) {
     let { patientName } = body; 
     if (!patientName && name) patientName = name;
 
-    if (!date || !amount) {
-      return NextResponse.json({ error: "Dados obrigatórios faltando." }, { status: 400 });
+    if (!date || !consultationTypeId) {
+      return NextResponse.json({ error: "Dados obrigatórios (data ou tipo de consulta) faltando." }, { status: 400 });
     }
+
+    // 1. BUSCAR O TIPO E O PREÇO NO BANCO (Validação de Segurança)
+    const consultationType = await prisma.consultationType.findUnique({
+      where: { id: consultationTypeId }
+    });
+
+    if (!consultationType) {
+      return NextResponse.json({ error: "Tipo de consulta inválido." }, { status: 400 });
+    }
+
+    const amount = Number(consultationType.price); // Usar o preço oficial do banco
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+    // Definição de Usuário e Paciente
     let finalUserId = session.user.id;
     let finalPatientName = patientName;
     let finalPatientEmail = patientEmail || session.user.email;
@@ -161,10 +178,11 @@ export async function POST(req: NextRequest) {
     const isAdminOrDoctor = session.user.role === "ADMIN" || session.user.role === "DOCTOR";
 
     if (isAdminOrDoctor) {
-      if (userId) finalUserId = userId;
+      if (userId) finalUserId = userId; // Admin pode agendar para outros users
       if (!finalPatientName) finalPatientName = session.user.name; 
       finalPatientEmail = patientEmail || null; 
     } else {
+      // Usuário comum sempre agenda pra si mesmo
       finalUserId = session.user.id;
       finalPatientName = session.user.name; 
       finalPatientEmail = session.user.email;
@@ -172,7 +190,14 @@ export async function POST(req: NextRequest) {
 
     if (!finalPatientName) finalPatientName = "Paciente";
 
+    // 2. TRANSAÇÃO: Criar Agendamento + Pagamento
     const { appointment, payment } = await prisma.$transaction(async (tx) => {
+      // Verifica se o User ID realmente existe (para evitar o erro que você viu)
+      const userExists = await tx.user.findUnique({ where: { id: finalUserId }});
+      if (!userExists) {
+        throw new Error(`Usuário inválido (ID: ${finalUserId}). Faça login novamente.`);
+      }
+
       const newAppointment = await tx.appointment.create({
         data: {
           userId: finalUserId,
@@ -180,7 +205,11 @@ export async function POST(req: NextRequest) {
           date: parseISO(date),
           startTime,
           endTime,
-          type: type as ConsultationType || "GENERAL",
+          
+          // Novos Campos:
+          consultationTypeId: consultationType.id, // ID da tabela
+          amount: amount,                          // Preço salvo no momento
+          
           status: AppointmentStatus.PENDING,
           patientName: finalPatientName,
           patientEmail: finalPatientEmail,
@@ -191,9 +220,9 @@ export async function POST(req: NextRequest) {
       const newPayment = await tx.payment.create({
         data: {
           appointmentId: newAppointment.id,
-          amount: Number(amount),
+          amount: amount,
           currency: "BRL",
-          description: description || "Consulta Médica",
+          description: description || `Consulta: ${consultationType.name}`,
           status: PaymentStatus.PENDING,
           payerEmail: session.user.email, 
           payerName: session.user.name
@@ -203,6 +232,7 @@ export async function POST(req: NextRequest) {
       return { appointment: newAppointment, payment: newPayment };
     });
 
+    // 3. INTEGRAÇÃO MERCADO PAGO
     let initPoint = null;
 
     if (mpAccessToken) {
@@ -211,9 +241,9 @@ export async function POST(req: NextRequest) {
           body: {
             items: [{
               id: appointment.id,
-              title: description || "Consulta Médica",
+              title: description || `Consulta: ${consultationType.name}`,
               quantity: 1,
-              unit_price: Number(amount),
+              unit_price: amount,
               currency_id: "BRL",
             }],
             payer: {
@@ -253,6 +283,6 @@ export async function POST(req: NextRequest) {
 
   } catch (e: any) {
     console.error("Erro POST /appointments:", e);
-    return NextResponse.json({ error: "Falha ao criar agendamento.", details: e.message }, { status: 500 });
+    return NextResponse.json({ error: e.message || "Falha ao criar agendamento." }, { status: 500 });
   }
 }

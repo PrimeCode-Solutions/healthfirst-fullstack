@@ -20,6 +20,45 @@ async function main() {
       },
     })
   }
+
+  const consultationTypes = [
+    { 
+      name: 'Consulta Geral', 
+      price: 150.00, 
+      description: 'Atendimento clínico geral para avaliação de rotina.',
+      duration: 30
+    },
+    { 
+      name: 'Consulta Especializada', 
+      price: 250.00, 
+      description: 'Atendimento com especialista focado em queixas específicas.',
+      duration: 45
+    },
+    { 
+      name: 'Retorno', 
+      price: 100.00, 
+      description: 'Reavaliação de exames e acompanhamento de tratamento.',
+      duration: 20
+    }
+  ]
+
+  for (const type of consultationTypes) {
+
+    const exists = await prisma.consultationType.findFirst({
+        where: { name: type.name }
+    });
+
+    if (!exists) {
+        await prisma.consultationType.create({
+            data: {
+                name: type.name,
+                price: type.price,
+                description: type.description,
+                duration: type.duration
+            }
+        });
+    }
+  }
 }
 
 main()

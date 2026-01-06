@@ -10,6 +10,7 @@ import {
   CreditCard,
   ShieldCheck,
   LogOut,
+  Stethoscope,
 } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -62,6 +63,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Médicos",
           url: "/dashboard/medicos",
           icon: ShieldCheck,
+        },
+        {
+          title: "Consultas",
+          url: "/dashboard/admin/consultas", 
+          icon: Stethoscope, 
         },
         {
           title: "Clientes",

@@ -38,12 +38,6 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import TransparentPaymentForm from "@/presentation/payments/create/TransparentPaymentForm"; 
 
-const consultationTypes = [
-  { id: "GENERAL", name: "Consulta Geral", price: 150.00 },
-  { id: "URGENT", name: "Consulta Especializada", price: 250.00 },
-  { id: "FOLLOWUP", name: "Retorno", price: 100.00 },
-];
-
 function formatTime(time: string) {
   const [hours, minutes] = time.split(":");
   return `${hours.padStart(2, '0')}:${minutes}`;
@@ -65,6 +59,7 @@ export default function AppointmentBooking() {
 
   const [pendingPayment, setPendingPayment] = useState<{ appointmentId: string, amount: number } | null>(null);
 
+  // 1. Buscar Médicos
   const { data: doctorsList, error: doctorsError } = useQuery({
     queryKey: ["public-doctors"],
     queryFn: async () => {
@@ -73,10 +68,19 @@ export default function AppointmentBooking() {
     },
   });
 
+  // 2. [NOVO] Buscar Tipos de Consulta Dinâmicos
+  const { data: consultationTypesList, isLoading: isLoadingTypes } = useQuery({
+    queryKey: ["consultation-types"],
+    queryFn: async () => {
+      const res = await api.get("/admin/consultation-types"); 
+      return res.data; 
+    },
+  });
+
   if (doctorsError) 
     throw doctorsError;
 
-  // 2. Buscar Slots Disponíveis
+  // 3. Buscar Slots Disponíveis
   const { data: availableTimes, isLoading: isLoadingSlots } = useQuery({
     queryKey: ["slots", selectedDoctor, selectedDate?.toISOString()],
     queryFn: async () => {
@@ -103,19 +107,26 @@ export default function AppointmentBooking() {
     try {
       const startTime24h = formatTime(selectedTime);
       const [startHour, startMinute] = startTime24h.split(":").map(Number);
-      const endHour = startMinute === 30 ? startHour + 1 : startHour;
-      const endMinute = startMinute === 30 ? 0 : 30;
-      const endTime24h = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`;
+      
+      // Buscar dados do tipo selecionado para calcular duração/preço visualmente
+      const typeData = consultationTypesList?.find((t: any) => t.id === selectedConsultationType);
+      const duration = typeData?.duration || 30;
 
-      const typeData = consultationTypes.find(t => t.id === selectedConsultationType);
+      // Calculando horário de término baseado na duração do banco
+      const endDateObj = new Date();
+      endDateObj.setHours(startHour, startMinute + duration);
+      const endTime24h = `${String(endDateObj.getHours()).padStart(2, '0')}:${String(endDateObj.getMinutes()).padStart(2, '0')}`;
+
       const doctorData = doctorsList?.find((d: any) => d.id === selectedDoctor);
       
       const { data } = await api.post("/appointments", {
         date: selectedDate.toISOString(),
         startTime: startTime24h,
         endTime: endTime24h,
-        type: selectedConsultationType,
-        amount: typeData?.price || 150,
+        
+        // [IMPORTANTE] Enviando o ID do banco, não string estática
+        consultationTypeId: selectedConsultationType,
+        
         description: `Agendamento: ${typeData?.name} com ${doctorData?.name}`,
         patientName: session?.user?.name,
         doctorId: selectedDoctor
@@ -124,18 +135,17 @@ export default function AppointmentBooking() {
       if (data.id || data.appointmentId) {
          setPendingPayment({
              appointmentId: data.id || data.appointmentId, 
-             amount: typeData?.price || 150
+             amount: Number(typeData?.price) // O preço vem do objeto selecionado
          });
          toast.success("Agendamento criado! Realize o pagamento para confirmar.");
-      } else if (data.init_point) {
-         window.location.href = data.init_point;
       } else {
          throw new Error("Erro ao criar agendamento.");
       }
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Erro ao iniciar agendamento. Tente novamente.");
+      const msg = error.response?.data?.error || "Erro ao iniciar agendamento.";
+      toast.error(msg);
     } finally {
         setIsProcessing(false);
     }
@@ -166,6 +176,8 @@ export default function AppointmentBooking() {
           </div>
       );
   }
+
+  const selectedTypeName = consultationTypesList?.find((t: any) => t.id === selectedConsultationType)?.name;
 
   return (
     <div className="min-h-screen bg-gray-50/50 py-10">
@@ -217,7 +229,7 @@ export default function AppointmentBooking() {
                                     {doctorsList?.map((doctor: any) => (
                                         <CommandItem
                                         key={doctor.id}
-                                        value={doctor.id}
+                                        value={doctor.name}
                                         onSelect={() => {
                                             setSelectedDoctor(selectedDoctor === doctor.id ? "" : doctor.id);
                                             setDoctorOpen(false);
@@ -241,7 +253,6 @@ export default function AppointmentBooking() {
                             </Popover>
                         </div>
 
-                        {/* Seletor de Tipo */}
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-gray-700">Tipo de Atendimento</label>
                             <Popover open={consultationOpen} onOpenChange={setConsultationOpen}>
@@ -253,19 +264,21 @@ export default function AppointmentBooking() {
                                 className="w-full justify-between h-11 border-gray-300 hover:border-primary/50 hover:bg-white transition-colors"
                                 >
                                 {selectedConsultationType
-                                    ? consultationTypes.find((type) => type.id === selectedConsultationType)?.name
-                                    : "Selecione o tipo"}
+                                    ? selectedTypeName
+                                    : isLoadingTypes ? "Carregando..." : "Selecione o tipo"}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[300px] p-0" align="start">
                                 <Command>
+                                <CommandInput placeholder="Buscar tipo de consulta..." />
                                 <CommandList>
+                                    <CommandEmpty>Nenhum tipo encontrado.</CommandEmpty>
                                     <CommandGroup>
-                                    {consultationTypes.map((type) => (
+                                    {consultationTypesList?.map((type: any) => (
                                         <CommandItem
                                         key={type.id}
-                                        value={type.id}
+                                        value={type.name}
                                         onSelect={() => {
                                             setSelectedConsultationType(selectedConsultationType === type.id ? "" : type.id);
                                             setConsultationOpen(false);
@@ -278,11 +291,16 @@ export default function AppointmentBooking() {
                                             selectedConsultationType === type.id ? "opacity-100" : "opacity-0"
                                             )}
                                         />
-                                        <div className="flex flex-col">
-                                            <span>{type.name}</span>
-                                            <span className="text-xs text-muted-foreground font-medium text-emerald-600">
-                                                R$ {type.price.toFixed(2)}
-                                            </span>
+                                        <div className="flex flex-col w-full">
+                                            <div className="flex justify-between items-center w-full">
+                                                <span>{type.name}</span>
+                                                <span className="text-xs text-muted-foreground font-medium text-emerald-600 ml-2">
+                                                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(type.price)}
+                                                </span>
+                                            </div>
+                                            {type.duration && (
+                                              <span className="text-[10px] text-gray-400">{type.duration} min</span>
+                                            )}
                                         </div>
                                         </CommandItem>
                                     ))}
