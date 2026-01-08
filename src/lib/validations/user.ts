@@ -32,3 +32,23 @@ export const updateUserSchema = z.object({
     .min(14, "Telefone incompleto")
     .optional(), 
 });
+
+export const changePasswordSchema = z.object({
+  currentPassword: z
+    .string()
+    .min(1, "Informe sua senha atual"),
+    newPassword: z
+      .string()
+      .min(8, "A nova senha deve conter pelo menos 8 caracteres")
+      .regex(
+        /^(?=.*[#$@!%*?])[A-Za-z\d#$@!%*?]{8,}$/,
+      "A nova senha deve conter pelo menos um caractere especial"
+    ),
+    confirmNewPassword: z 
+    .string()
+    .min(1, "Confirme sua nova senha"),
+})
+.refine((data)=> data.newPassword === data.confirmNewPassword, {
+  message: "As senhas não coincidem",
+  path: ["confirmNewPassword"],
+})

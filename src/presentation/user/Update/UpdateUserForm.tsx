@@ -79,7 +79,10 @@ export function UpdateUserForm({ user, onSuccess }: UpdateUserFormProps) {
             <FormItem>
               <FormLabel>E-mail</FormLabel>
               <FormControl>
-                <Input placeholder="Ex: joao@email.com" {...field} />
+                <Input placeholder="Ex: joao@email.com"
+                {...field}
+                disabled
+                readOnly/>
               </FormControl>
               <FormMessage />
             </FormItem>
