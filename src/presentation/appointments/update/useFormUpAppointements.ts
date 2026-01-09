@@ -2,6 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useUpdateAppointmentStatusMutation } from "../mutations/useAppointmentMutations";
+import DOMPurify from "dompurify";
 
 export const AppointmentStatusSchema = z.enum([
   "PENDING",
@@ -29,7 +30,14 @@ export function UpdateAppointmentForm() {
   const updateAppointment = useUpdateAppointmentStatusMutation();
 
   const onSubmit = form.handleSubmit((data: UpdateAppointmentType) => {
-    updateAppointment.mutate(data, {
+    const sanitizedData = {
+      ...data,
+      id:
+        typeof window !== "undefined"
+          ? DOMPurify.sanitize(data.id).trim()
+          : data.id.trim(),
+    };
+    updateAppointment.mutate(sanitizedData, {
       onSuccess: () => {
         form.reset();
       },
