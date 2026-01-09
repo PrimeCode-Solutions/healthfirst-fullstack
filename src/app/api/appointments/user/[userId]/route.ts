@@ -72,7 +72,7 @@ export async function GET(
           date: true,
           startTime: true,
           endTime: true,
-          type: true,
+          consultationType: true, 
           patientName: true,
           patientEmail: true,
           patientPhone: true,
