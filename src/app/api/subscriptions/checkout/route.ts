@@ -63,12 +63,6 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    if (subscription.status === 'authorized') {
-      await prisma.user.update({
-        where: { id: targetUserId },
-        data: { isPremium: true }
-      });
-    }
 
     return NextResponse.json({ id: subscription.id, status: subscription.status });
 

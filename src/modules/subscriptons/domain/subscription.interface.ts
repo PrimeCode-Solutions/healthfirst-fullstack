@@ -1,13 +1,14 @@
 //import { SubscriptionStatus } from "@/generated/prisma";
 
-export enum SubscriptionStatus{
-    ACTIVE = 'active',
-    INACTIVE = 'inactive',
-    CANCELLED = 'cancelled',
-    PENDING = 'pending'
+export enum SubscriptionStatus {
+    ACTIVE = 'ACTIVE',
+    INACTIVE = 'INACTIVE',
+    CANCELLED = 'CANCELLED',
+    PENDING = 'PENDING',
+    EXPIRED = 'EXPIRED' 
 }
 
-export interface Subscription{
+export interface Subscription {
     id: string;
     userId: string;
     mercadoPagoId?: string;
@@ -16,9 +17,11 @@ export interface Subscription{
     amount?: number;
     currency: string;
     status: SubscriptionStatus;
+    createdAt: Date | string; 
 }
+
 //Definir DTOs para criação 
-export interface CreateSubscriptionDTO{
+export interface CreateSubscriptionDTO {
     userId: string;
     mercadoPagoId?: string;
     preapprovalId: string;
@@ -26,8 +29,9 @@ export interface CreateSubscriptionDTO{
     amount?: number;
     currency: string;
 }
+
 //Definir DTOs para Atualização
-export interface UpdateSubscriptionDTO{
+export interface UpdateSubscriptionDTO {
     planName?: string;
     amount?: number;
     currency?: string;

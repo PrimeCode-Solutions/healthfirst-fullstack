@@ -32,11 +32,15 @@ export async function POST(req: Request) {
         const signature = req.headers.get("x-signature");
         const requestId = req.headers.get("x-request-id");
 
-        if (process.env.NODE_ENV === 'production' && MP_WEBHOOK_SECRET) {
+        if (process.env.NODE_ENV === 'production') {
+            if (!MP_WEBHOOK_SECRET) {
+                console.error("CRITICAL: MP_WEBHOOK_SECRET not defined in production.");
+                return new Response("Server Config Error", { status: 500 });
+            }
             if (!validateSignature(bodyText, signature, requestId)) {
                 return new Response("Invalid Signature", { status: 401 });
             }
-        }
+            }   
 
         const body = JSON.parse(bodyText);
         const { type, data, action } = body;
@@ -48,6 +52,11 @@ export async function POST(req: Request) {
 
         const existingEvent = await prisma.processedWebhookEvent.findUnique({ where: { eventId } });
         if (existingEvent?.processed) return new Response("Already Processed", { status: 200 });
+
+        if (existingEvent && existingEvent.attempts >= 5) {
+            console.error(`[Webhook Alert] Evento ${eventId} descartado após 5 falhas.`);
+            return new Response("Max attempts reached", { status: 200 }); 
+        }
 
         await prisma.processedWebhookEvent.upsert({
             where: { eventId },

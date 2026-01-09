@@ -4,8 +4,9 @@ import { prisma } from "@/app/providers/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-config";
 import { AppointmentStatus, PaymentStatus } from "@/generated/prisma"; 
-import { parseISO, isValid as isValidDate, startOfDay, endOfDay } from "date-fns";
+import { parseISO, isValid as isValidDate, startOfDay, endOfDay, format } from "date-fns"; // Adicionado format
 import { z } from "zod";
+import { sendAppointmentConfirmation } from "@/lib/whatsapp"; // <--- IMPORT NOVO
 
 export const dynamic = "force-dynamic";
 
@@ -191,10 +192,26 @@ export async function POST(req: NextRequest) {
 
     // 2. TRANSAÇÃO: Criar Agendamento + Pagamento
     const { appointment, payment } = await prisma.$transaction(async (tx) => {
-      // Verifica se o User ID realmente existe (para evitar o erro que você viu)
       const userExists = await tx.user.findUnique({ where: { id: finalUserId }});
       if (!userExists) {
         throw new Error(`Usuário inválido (ID: ${finalUserId}). Faça login novamente.`);
+      }
+
+      if (doctorId) {
+        const conflictingAppointment = await tx.appointment.findFirst({
+          where: {
+            doctorId: doctorId,
+            date: parseISO(date),
+            startTime: startTime,
+            status: {
+              notIn: [AppointmentStatus.CANCELLED] 
+            }
+          }
+        });
+
+        if (conflictingAppointment) {
+          throw new Error("CONFLICT_ERROR");
+        }
       }
 
       const appointmentId = crypto.randomUUID();
@@ -207,7 +224,7 @@ export async function POST(req: NextRequest) {
           startTime,
           endTime,
           consultationTypeId: consultationType.id, 
-          amount: amount,                          
+          amount: amount,                               
           
           status: AppointmentStatus.PENDING,
           patientName: finalPatientName,
@@ -231,6 +248,37 @@ export async function POST(req: NextRequest) {
 
       return { appointment: newAppointment, payment: newPayment };
     });
+
+    try {
+      let phoneToSend = finalPatientPhone;
+
+      if (!phoneToSend) {
+        const user = await prisma.user.findUnique({
+           where: { id: finalUserId },
+           select: { phone: true }
+        });
+        phoneToSend = user?.phone;
+      }
+
+      if (phoneToSend) {
+        const dateFormatted = format(parseISO(date), "dd/MM/yyyy");
+        
+        console.log(`📱 [WhatsApp] Enviando confirmação para ${phoneToSend}...`);
+        
+        await sendAppointmentConfirmation(
+          phoneToSend,
+          finalPatientName,
+          `${dateFormatted} às ${startTime}`
+        );
+        
+        console.log("✅ [WhatsApp] Mensagem enviada com sucesso!");
+      } else {
+        console.warn("⚠️ [WhatsApp] Telefone não encontrado para envio.");
+      }
+    } catch (wpError) {
+      console.error("❌ Erro ao enviar WhatsApp:", wpError);
+    }
+    // ---------------------------------------------
 
     // 3. INTEGRAÇÃO MERCADO PAGO
     let initPoint = null;
@@ -282,6 +330,9 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
 
   } catch (e: any) {
+    if (e.message === "CONFLICT_ERROR") {
+      return NextResponse.json({ error: "Este horário já está reservado." }, { status: 409 });
+    }
     console.error("Erro POST /appointments:", e);
     return NextResponse.json({ error: e.message || "Falha ao criar agendamento." }, { status: 500 });
   }
