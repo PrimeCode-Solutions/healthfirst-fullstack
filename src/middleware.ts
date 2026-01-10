@@ -1,38 +1,51 @@
-import { withAuth } from "next-auth/middleware";
+import { withAuth, NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { authRateLimit } from "@/lib/rate-limit";
-import type { NextFetchEvent } from "next/server";
+import {
+  authRateLimit,
+  appointmentsApiRateLimit,
+  othersApiRateLimit,
+} from "@/lib/rate-limit";
+import type { NextRequest, NextFetchEvent } from "next/server";
 
 async function handleRateLimit(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "127.0.0.1";
 
-  if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/appointments")) {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "127.0.0.1";
+  let limiter;
+  if (pathname.startsWith("/api/auth")) {
+    limiter = authRateLimit;
+  } else if (pathname.startsWith("/api/appointments")) {
+    limiter = appointmentsApiRateLimit;
+  } else if (pathname.startsWith("/api/")) {
+    limiter = othersApiRateLimit;
+  }
 
+  if (limiter) {
     try {
-      const { success } = await authRateLimit.limit(ip);
-
+      const { success } = await limiter.limit(ip);
       if (!success) {
         return NextResponse.json(
           { error: "Muitas requisições. Tente novamente em breve." },
-          { status: 429 }
+          { status: 429 },
         );
       }
     } catch (error) {
-      console.error("Critical: Redis connection failed in Middleware:", error);
+      console.error(`Redis Error on ${pathname}:`, error);
     }
   }
+
   return null;
 }
 
-export default async function middleware(req: NextRequest, event: NextFetchEvent) {
-  
+export default async function middleware(
+  req: NextRequest,
+  event: NextFetchEvent,
+) {
   const rateLimitResponse = await handleRateLimit(req);
   if (rateLimitResponse) return rateLimitResponse;
 
   const authMiddleware = withAuth(
-    function middleware(req) {
+    function middleware(req: NextRequestWithAuth) {
       const { pathname } = req.nextUrl;
       const token = req.nextauth?.token;
       const userRole = token?.role;
@@ -41,14 +54,14 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
       const staffRoutes = ["/dashboard/agendamentos"];
 
       if (
-        adminRoutes.some(route => pathname.startsWith(route)) &&
+        adminRoutes.some((route) => pathname.startsWith(route)) &&
         userRole !== "ADMIN"
       ) {
         return NextResponse.rewrite(new URL("/forbidden", req.url));
       }
 
       if (
-        staffRoutes.some(route => pathname.startsWith(route)) &&
+        staffRoutes.some((route) => pathname.startsWith(route)) &&
         userRole !== "ADMIN" &&
         userRole !== "DOCTOR"
       ) {
@@ -67,18 +80,12 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
       pages: {
         signIn: "/login",
       },
-    }
+    },
   );
 
-  
-  // @ts-expect-error - O withAuth retorna um NextMiddleware que espera argumentos específicos
-  return authMiddleware(req, event);
+  return authMiddleware(req as NextRequestWithAuth, event);
 }
 
 export const config = {
-  matcher: [
-    "/dashboard/:path*",
-    "/api/auth/:path*",
-    "/api/appointments/:path*",
-  ],
+  matcher: ["/dashboard/:path*", "/api/:path*"],
 };
